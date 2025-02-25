@@ -58,10 +58,39 @@ func ListValues() (Config, error) {
 	return LoadConfig()
 }
 
+func GetValue(key string) (interface{}, bool, error) {
+	config, err := LoadConfig()
+	if err != nil {
+		return nil, false, err
+	}
+
+	value, exists := config[key]
+	return value, exists, nil
+}
+
+func DeleteValue(key string) (bool, error) {
+	config, err := LoadConfig()
+	if err != nil {
+		return false, err
+	}
+
+	if _, exists := config[key]; !exists {
+		return false, nil
+	}
+
+	delete(config, key)
+
+	if err := SaveConfig(config); err != nil {
+		return false, err
+	}
+
+	return true, nil
+}
+
 func handleConfigCommand(args []string) {
 	if len(args) < 1 {
 		fmt.Println("Config command requires a subcommand")
-		fmt.Println("Available subcommands: set, list")
+		fmt.Println("Available subcommands: get, set, delete, list")
 		os.Exit(1)
 	}
 
@@ -70,11 +99,15 @@ func handleConfigCommand(args []string) {
 	switch subcommand {
 	case "set":
 		handleConfigSetCommand(args[1:])
+	case "get":
+		handleConfigGetCommand(args[1:])
+	case "delete":
+		handleConfigDeleteCommand(args[1:])
 	case "list":
 		handleConfigListCommand()
 	default:
 		fmt.Printf("Unknown config subcommand: %s\n", subcommand)
-		fmt.Println("Available subcommands: set, list")
+		fmt.Println("Available subcommands: get, set, delete, list")
 		os.Exit(1)
 	}
 }
@@ -113,4 +146,50 @@ func handleConfigListCommand() {
 	for key, value := range configValues {
 		fmt.Printf("  %s = %v\n", key, value)
 	}
+}
+
+func handleConfigGetCommand(args []string) {
+	if len(args) < 1 {
+		fmt.Println("Usage: synkronus config get <key>")
+		fmt.Println("Example: synkronus config get gcp_project")
+		os.Exit(1)
+	}
+
+	key := args[0]
+	value, exists, err := GetValue(key)
+
+	if err != nil {
+		fmt.Printf("Error getting configuration: %v\n", err)
+		os.Exit(1)
+	}
+
+	if !exists {
+		fmt.Printf("Configuration key '%s' not found\n", key)
+		os.Exit(1)
+	}
+
+	fmt.Printf("%s = %v\n", key, value)
+}
+
+func handleConfigDeleteCommand(args []string) {
+	if len(args) < 1 {
+		fmt.Println("Usage: synkronus config delete <key>")
+		fmt.Println("Example: synkronus config delete gcp_project")
+		os.Exit(1)
+	}
+
+	key := args[0]
+	deleted, err := DeleteValue(key)
+
+	if err != nil {
+		fmt.Printf("Error deleting configuration: %v\n", err)
+		os.Exit(1)
+	}
+
+	if !deleted {
+		fmt.Printf("Configuration key '%s' not found\n", key)
+		os.Exit(1)
+	}
+
+	fmt.Printf("Configuration key '%s' deleted\n", key)
 }

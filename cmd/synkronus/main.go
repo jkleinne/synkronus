@@ -81,6 +81,8 @@ func printUsage() {
 	fmt.Println("\nExamples:")
 	fmt.Println("  synkronus storage list")
 	fmt.Println("  synkronus sql list")
+	fmt.Println("  synkronus config get gcp_project")
 	fmt.Println("  synkronus config set gcp_project my-gcp-123")
+	fmt.Println("  synkronus config delete gcp_project")
 	fmt.Println("  synkronus config list")
 }
