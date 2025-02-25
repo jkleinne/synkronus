@@ -18,6 +18,8 @@ func main() {
 		handleStorageCommand(os.Args[2:])
 	case "sql":
 		handleSQLCommand(os.Args[2:])
+	case "config":
+		handleConfigCommand(os.Args[2:])
 	case "help":
 		printUsage()
 	default:
@@ -74,8 +76,11 @@ func printUsage() {
 	fmt.Println("\nAvailable Commands:")
 	fmt.Println("  storage    Manage storage resources")
 	fmt.Println("  sql        Manage SQL resources")
+	fmt.Println("  config     Manage configuration settings")
 	fmt.Println("  help       Show this help message")
 	fmt.Println("\nExamples:")
 	fmt.Println("  synkronus storage list")
 	fmt.Println("  synkronus sql list")
+	fmt.Println("  synkronus config set gcp_project my-gcp-123")
+	fmt.Println("  synkronus config list")
 }
