@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 
+	"synkronus/internal/config"
 	"synkronus/pkg/storage/aws"
 	"synkronus/pkg/storage/gcp"
 )
@@ -58,7 +59,7 @@ func handleStorageCommand(args []string) {
 	}
 
 	// Load configuration for storage providers
-	config, err := LoadConfig()
+	cfg, err := config.LoadConfig()
 	if err != nil {
 		fmt.Printf("Error loading configuration: %v\n", err)
 		os.Exit(1)
@@ -66,7 +67,7 @@ func handleStorageCommand(args []string) {
 
 	// Convert Config to map[string]string for provider configuration
 	configMap := map[string]string{}
-	for key, value := range config {
+	for key, value := range cfg {
 		if strValue, ok := value.(string); ok {
 			configMap[key] = strValue
 		}

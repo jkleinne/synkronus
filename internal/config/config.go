@@ -57,3 +57,32 @@ func SetValue(key, value string) error {
 func ListValues() (Config, error) {
 	return LoadConfig()
 }
+
+func GetValue(key string) (interface{}, bool, error) {
+	config, err := LoadConfig()
+	if err != nil {
+		return nil, false, err
+	}
+
+	value, exists := config[key]
+	return value, exists, nil
+}
+
+func DeleteValue(key string) (bool, error) {
+	config, err := LoadConfig()
+	if err != nil {
+		return false, err
+	}
+
+	if _, exists := config[key]; !exists {
+		return false, nil
+	}
+
+	delete(config, key)
+
+	if err := SaveConfig(config); err != nil {
+		return false, err
+	}
+
+	return true, nil
+}
