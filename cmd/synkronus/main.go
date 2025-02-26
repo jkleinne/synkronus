@@ -47,11 +47,12 @@ func handleStorageCommand(args []string) {
 	// Check for provider flags
 	if len(args) > 1 {
 		for i := 1; i < len(args); i++ {
-			if args[i] == "--gcp" {
+			switch args[i] {
+			case "--gcp":
 				provider = "gcp"
-			} else if args[i] == "--aws" {
+			case "--aws":
 				provider = "aws"
-			} else {
+			default:
 				remainingArgs = append(remainingArgs, args[i])
 			}
 		}
