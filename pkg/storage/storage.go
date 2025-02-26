@@ -7,30 +7,13 @@ const (
 	AWS Provider = "aws"
 )
 
-type StorageService interface {
+type Storage interface {
+	// List returns a slice of bucket names
 	List() ([]string, error)
-	DescribeBucket(bucketName string) (map[string]string, error)
-}
 
-type StorageClient struct {
-	services map[Provider]StorageService
-}
+	// DescribeBucket returns details about a specific bucket
+	DescribeBucket(bucketName string) (map[string]interface{}, error)
 
-func NewStorageClient(services map[Provider]StorageService) *StorageClient {
-	return &StorageClient{
-		services: services,
-	}
-}
-
-func (c *StorageClient) GetService(provider Provider) (StorageService, bool) {
-	service, exists := c.services[provider]
-	return service, exists
-}
-
-func (c *StorageClient) ListProviders() []Provider {
-	var providers []Provider
-	for provider := range c.services {
-		providers = append(providers, provider)
-	}
-	return providers
+	// Close releases any resources used by the storage client
+	Close() error
 }

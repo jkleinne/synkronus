@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 
-	"synkronus/pkg/storage"
 	"synkronus/pkg/storage/aws"
 	"synkronus/pkg/storage/gcp"
 )
@@ -95,8 +94,6 @@ func handleStorageCommand(args []string) {
 }
 
 func handleStorageList(configMap map[string]string, provider string) {
-	// Use storage package to keep import
-	_ = storage.Provider(provider)
 	// If no provider specified, list all configured providers
 	if provider == "" {
 		fmt.Println("Listing storage buckets across all configured providers:")
@@ -105,7 +102,11 @@ func handleStorageList(configMap map[string]string, provider string) {
 		if gcpProject, hasProject := configMap["gcp_project"]; hasProject {
 			fmt.Println("Provider: gcp")
 			// Initialize GCP client without requiring a specific bucket
-			gcpClient := gcp.NewGCPStorage(gcpProject, "")
+			gcpClient, err := gcp.NewGCPStorage(gcpProject, "")
+			if err != nil {
+				fmt.Printf("Error initializing GCP client: %v\n", err)
+				return
+			}
 			buckets, err := gcpClient.List()
 			if err != nil {
 				fmt.Printf("Error listing GCP buckets: %v\n", err)
@@ -143,7 +144,11 @@ func handleStorageList(configMap map[string]string, provider string) {
 			fmt.Println("Error: GCP project not configured. Use 'synkronus config set gcp_project <project-id>'")
 			return
 		}
-		gcpClient := gcp.NewGCPStorage(gcpProject, "")
+		gcpClient, err := gcp.NewGCPStorage(gcpProject, "")
+		if err != nil {
+			fmt.Printf("Error initializing GCP client: %v\n", err)
+			return
+		}
 		buckets, err := gcpClient.List()
 		if err != nil {
 			fmt.Printf("Error listing GCP buckets: %v\n", err)
@@ -182,7 +187,11 @@ func handleStorageDescribe(configMap map[string]string, provider, bucketName str
 			fmt.Println("Error: GCP project not configured. Use 'synkronus config set gcp_project <project-id>'")
 			return
 		}
-		gcpClient := gcp.NewGCPStorage(gcpProject, bucketName)
+		gcpClient, err := gcp.NewGCPStorage(gcpProject, bucketName)
+		if err != nil {
+			fmt.Printf("Error initializing GCP client: %v\n", err)
+			return
+		}
 		details, err := gcpClient.DescribeBucket(bucketName)
 		if err != nil {
 			fmt.Printf("Error describing GCP bucket: %v\n", err)
