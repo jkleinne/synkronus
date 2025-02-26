@@ -1,12 +1,15 @@
-// Package gcp provides Google Cloud Platform storage operations implementation
 package gcp
 
 import (
 	"context"
 	"fmt"
+	"time"
 
+	monitoring "cloud.google.com/go/monitoring/apiv3/v2"
+	monitoringpb "cloud.google.com/go/monitoring/apiv3/v2/monitoringpb"
 	"cloud.google.com/go/storage"
 	"google.golang.org/api/iterator"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 type GCPStorage struct {
@@ -28,8 +31,6 @@ func NewGCPStorage(projectID, bucketName string) (*GCPStorage, error) {
 		bucketName: bucketName,
 	}, nil
 }
-
-// List returns a slice of bucket names in the project
 func (g *GCPStorage) List() ([]string, error) {
 	ctx := context.Background()
 	var buckets []string
@@ -49,6 +50,65 @@ func (g *GCPStorage) List() ([]string, error) {
 	return buckets, nil
 }
 
+func (g *GCPStorage) getBucketUsage(ctx context.Context, bucketName string) (int64, error) {
+	client, err := monitoring.NewMetricClient(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("failed to create monitoring client: %w", err)
+	}
+	defer client.Close()
+
+	endTime := time.Now()
+	startTime := endTime.Add(-5 * time.Minute)
+
+	req := &monitoringpb.ListTimeSeriesRequest{
+		Name:   fmt.Sprintf("projects/%s", g.projectID),
+		Filter: fmt.Sprintf(`metric.type="storage.googleapis.com/storage/total_bytes" AND resource.labels.bucket_name="%s"`, bucketName),
+		Interval: &monitoringpb.TimeInterval{
+			StartTime: timestamppb.New(startTime),
+			EndTime:   timestamppb.New(endTime),
+		},
+		View: monitoringpb.ListTimeSeriesRequest_FULL,
+	}
+
+	it := client.ListTimeSeries(ctx, req)
+	resp, err := it.Next()
+	if err == iterator.Done {
+		return 0, nil
+	}
+	if err != nil {
+		return 0, fmt.Errorf("error getting metric data: %w", err)
+	}
+
+	if len(resp.GetPoints()) == 0 {
+		return 0, nil
+	}
+
+	latestPoint := resp.GetPoints()[0]
+	value := latestPoint.GetValue().GetInt64Value()
+
+	return value, nil
+}
+
+func formatBytes(bytes int64) string {
+	if bytes == 0 {
+		return "0 B"
+	}
+
+	const unit = 1024
+	if bytes < unit {
+		return fmt.Sprintf("%d B", bytes)
+	}
+
+	div, exp := int64(unit), 0
+	for n := bytes / unit; n >= unit; n /= unit {
+		div *= unit
+		exp++
+	}
+
+	sizes := []string{"KB", "MB", "GB", "TB"}
+	return fmt.Sprintf("%.1f %s", float64(bytes)/float64(div), sizes[exp])
+}
+
 // DescribeBucket returns details about a specific bucket
 func (g *GCPStorage) DescribeBucket(bucketName string) (map[string]interface{}, error) {
 	ctx := context.Background()
@@ -59,12 +119,24 @@ func (g *GCPStorage) DescribeBucket(bucketName string) (map[string]interface{}, 
 		return nil, fmt.Errorf("error getting bucket attributes: %w", err)
 	}
 
+	usage, err := g.getBucketUsage(ctx, bucketName)
+
+	var usageFormatted string
+
+	if err != nil {
+		usageFormatted = "N/A"
+	} else {
+		usageFormatted = formatBytes(usage)
+	}
+
 	details := map[string]interface{}{
-		"name":         attrs.Name,
-		"location":     attrs.Location,
-		"storageClass": attrs.StorageClass,
-		"created":      attrs.Created,
-		"updated":      attrs.Updated,
+		"name":              attrs.Name,
+		"Location / Region": attrs.Location,
+		"storageClass":      attrs.StorageClass,
+		"created":           attrs.Created,
+		"updated":           attrs.Updated,
+		"Provider":          "Google Cloud",
+		"Usage":             usageFormatted,
 	}
 
 	return details, nil

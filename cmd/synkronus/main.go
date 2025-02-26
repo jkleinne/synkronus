@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"synkronus/internal/config"
+	"synkronus/pkg/formatter"
 	"synkronus/pkg/storage/aws"
 	"synkronus/pkg/storage/gcp"
 )
@@ -95,33 +96,50 @@ func handleStorageCommand(args []string) {
 }
 
 func handleStorageList(configMap map[string]string, provider string) {
+	storageFormatter := formatter.NewStorageFormatter()
+
 	// If no provider specified, list all configured providers
 	if provider == "" {
 		fmt.Println("Listing storage buckets across all configured providers:")
 
 		// Check if GCP is configured
 		if gcpProject, hasProject := configMap["gcp_project"]; hasProject {
-			fmt.Println("Provider: gcp")
-			// Initialize GCP client without requiring a specific bucket
+			fmt.Println("Provider: GCP")
+
+			// Initialize GCP client
 			gcpClient, err := gcp.NewGCPStorage(gcpProject, "")
 			if err != nil {
 				fmt.Printf("Error initializing GCP client: %v\n", err)
 				return
 			}
+
+			// Get list of buckets
 			buckets, err := gcpClient.List()
 			if err != nil {
 				fmt.Printf("Error listing GCP buckets: %v\n", err)
 			} else {
+				// Get details for each bucket
+				bucketDetails := make(map[string]map[string]string)
 				for _, bucket := range buckets {
-					fmt.Printf("  - %s\n", bucket)
+					details, err := gcpClient.DescribeBucket(bucket)
+					if err == nil {
+						// Convert map[string]interface{} to map[string]string
+						stringDetails := make(map[string]string)
+						for k, v := range details {
+							stringDetails[k] = fmt.Sprintf("%v", v)
+						}
+						bucketDetails[bucket] = stringDetails
+					}
 				}
+
+				// Format and print the table
+				fmt.Println(storageFormatter.FormatBucketList(buckets, "GCP", bucketDetails))
 			}
 		}
 
-		// Check if AWS is configured
+		// Check if AWS is configured (simplified, not using formatter for now)
 		if awsRegion, hasRegion := configMap["aws_region"]; hasRegion {
 			fmt.Println("Provider: aws")
-			// Initialize AWS client without requiring a specific bucket
 			awsClient := aws.NewAWSStorage(awsRegion, "")
 			buckets, err := awsClient.List()
 			if err != nil {
@@ -145,19 +163,37 @@ func handleStorageList(configMap map[string]string, provider string) {
 			fmt.Println("Error: GCP project not configured. Use 'synkronus config set gcp_project <project-id>'")
 			return
 		}
+
+		// Initialize GCP client
 		gcpClient, err := gcp.NewGCPStorage(gcpProject, "")
 		if err != nil {
 			fmt.Printf("Error initializing GCP client: %v\n", err)
 			return
 		}
+
+		// Get list of buckets
 		buckets, err := gcpClient.List()
 		if err != nil {
 			fmt.Printf("Error listing GCP buckets: %v\n", err)
 			return
 		}
+
+		// Get details for each bucket
+		bucketDetails := make(map[string]map[string]string)
 		for _, bucket := range buckets {
-			fmt.Printf("  - %s\n", bucket)
+			details, err := gcpClient.DescribeBucket(bucket)
+			if err == nil {
+				// Convert map[string]interface{} to map[string]string
+				stringDetails := make(map[string]string)
+				for k, v := range details {
+					stringDetails[k] = fmt.Sprintf("%v", v)
+				}
+				bucketDetails[bucket] = stringDetails
+			}
 		}
+
+		// Format and print the table
+		fmt.Println(storageFormatter.FormatBucketList(buckets, "GCP", bucketDetails))
 
 	case "aws":
 		awsRegion, hasRegion := configMap["aws_region"]
@@ -181,6 +217,8 @@ func handleStorageList(configMap map[string]string, provider string) {
 }
 
 func handleStorageDescribe(configMap map[string]string, provider, bucketName string) {
+	storageFormatter := formatter.NewStorageFormatter()
+
 	switch provider {
 	case "gcp":
 		gcpProject, hasProject := configMap["gcp_project"]
@@ -188,20 +226,27 @@ func handleStorageDescribe(configMap map[string]string, provider, bucketName str
 			fmt.Println("Error: GCP project not configured. Use 'synkronus config set gcp_project <project-id>'")
 			return
 		}
+
 		gcpClient, err := gcp.NewGCPStorage(gcpProject, bucketName)
 		if err != nil {
 			fmt.Printf("Error initializing GCP client: %v\n", err)
 			return
 		}
+
 		details, err := gcpClient.DescribeBucket(bucketName)
 		if err != nil {
 			fmt.Printf("Error describing GCP bucket: %v\n", err)
 			return
 		}
-		fmt.Printf("Details for bucket '%s' on GCP:\n", bucketName)
+
+		// Convert details from map[string]interface{} to map[string]string
+		stringDetails := make(map[string]string)
 		for key, value := range details {
-			fmt.Printf("  %s: %s\n", key, value)
+			stringDetails[key] = fmt.Sprintf("%v", value)
 		}
+
+		// Format and print the details
+		fmt.Println(storageFormatter.FormatBucketDetails(bucketName, stringDetails))
 
 	case "aws":
 		awsRegion, hasRegion := configMap["aws_region"]
@@ -215,6 +260,8 @@ func handleStorageDescribe(configMap map[string]string, provider, bucketName str
 			fmt.Printf("Error describing AWS bucket: %v\n", err)
 			return
 		}
+
+		// For AWS we'll stick with the simple output for now
 		fmt.Printf("Details for bucket '%s' on AWS:\n", bucketName)
 		for key, value := range details {
 			fmt.Printf("  %s: %s\n", key, value)
