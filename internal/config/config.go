@@ -4,14 +4,66 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 )
 
-const ConfigFileName = "synkronus.config.json"
+const (
+	ConfigFileName = "config.json"
+	ConfigDirName  = "synkronus"
+)
 
 type Config map[string]interface{}
 
+func getConfigPath() (string, error) {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("error getting user home directory: %w", err)
+	}
+
+	configDir := filepath.Join(homeDir, ".config", ConfigDirName)
+	configPath := filepath.Join(configDir, ConfigFileName)
+
+	if _, err := os.Stat(configPath); err == nil {
+		return configPath, nil
+	}
+
+	if _, err := os.Stat(ConfigFileName); err == nil {
+		if err := migrateConfig(ConfigFileName, configPath); err == nil {
+			return configPath, nil
+		}
+		return ConfigFileName, nil
+	}
+
+	if err := os.MkdirAll(configDir, 0755); err != nil {
+		return "", fmt.Errorf("error creating config directory: %w", err)
+	}
+
+	return configPath, nil
+}
+
+func migrateConfig(sourcePath, destPath string) error {
+	destDir := filepath.Dir(destPath)
+	if err := os.MkdirAll(destDir, 0755); err != nil {
+		return fmt.Errorf("error creating config directory: %w", err)
+	}
+
+	data, err := os.ReadFile(sourcePath)
+	if err != nil {
+		return fmt.Errorf("error reading source config file: %w", err)
+	}
+
+	if err := os.WriteFile(destPath, data, 0644); err != nil {
+		return fmt.Errorf("error writing destination config file: %w", err)
+	}
+
+	return nil
+}
+
 func LoadConfig() (Config, error) {
-	configPath := ConfigFileName
+	configPath, err := getConfigPath()
+	if err != nil {
+		return nil, err
+	}
 
 	if _, err := os.Stat(configPath); os.IsNotExist(err) {
 		return Config{}, nil
@@ -31,12 +83,17 @@ func LoadConfig() (Config, error) {
 }
 
 func SaveConfig(config Config) error {
+	configPath, err := getConfigPath()
+	if err != nil {
+		return err
+	}
+
 	data, err := json.MarshalIndent(config, "", "  ")
 	if err != nil {
 		return fmt.Errorf("error encoding config: %w", err)
 	}
 
-	if err := os.WriteFile(ConfigFileName, data, 0644); err != nil {
+	if err := os.WriteFile(configPath, data, 0644); err != nil {
 		return fmt.Errorf("error writing config file: %w", err)
 	}
 
