@@ -3,38 +3,52 @@ package gcp
 import (
 	"context"
 	"fmt"
+	"log"
 	"time"
+
+	"synkronus/pkg/storage"
 
 	monitoring "cloud.google.com/go/monitoring/apiv3/v2"
 	monitoringpb "cloud.google.com/go/monitoring/apiv3/v2/monitoringpb"
-	"cloud.google.com/go/storage"
+	gcpstorage "cloud.google.com/go/storage"
 	"google.golang.org/api/iterator"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 type GCPStorage struct {
-	client     *storage.Client
-	projectID  string
-	bucketName string
+	client    *gcpstorage.Client
+	projectID string
 }
 
-func NewGCPStorage(projectID, bucketName string) (*GCPStorage, error) {
-	ctx := context.Background()
-	client, err := storage.NewClient(ctx)
+var _ storage.Storage = (*GCPStorage)(nil)
+
+func NewGCPStorage(ctx context.Context, projectID string) (*GCPStorage, error) {
+	client, err := gcpstorage.NewClient(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create GCP storage client: %w", err)
 	}
 
 	return &GCPStorage{
-		client:     client,
-		projectID:  projectID,
-		bucketName: bucketName,
+		client:    client,
+		projectID: projectID,
 	}, nil
 }
-func (g *GCPStorage) List() ([]string, error) {
-	ctx := context.Background()
-	var buckets []string
 
+func (g *GCPStorage) ProviderName() storage.Provider {
+	return storage.GCP
+}
+
+func (g *GCPStorage) ListBuckets(ctx context.Context) ([]storage.Bucket, error) {
+	var buckets []storage.Bucket
+
+	// 1. Fetch usage metrics for all buckets first (O(1) API calls)
+	usageMap, err := g.getAllBucketUsages(ctx)
+	if err != nil {
+		log.Printf("Warning: Failed to retrieve GCP bucket usage metrics: %v\n", err)
+	}
+
+	// 2. Fetch bucket metadata (O(N) API calls, paginated by SDK)
+	// Use the provided context for the listing operation
 	it := g.client.Buckets(ctx, g.projectID)
 	for {
 		bucketAttrs, err := it.Next()
@@ -44,25 +58,44 @@ func (g *GCPStorage) List() ([]string, error) {
 		if err != nil {
 			return nil, fmt.Errorf("error listing buckets: %w", err)
 		}
-		buckets = append(buckets, bucketAttrs.Name)
+
+		usage := int64(-1) // Default to unknown
+		if usageMap != nil {
+			if u, ok := usageMap[bucketAttrs.Name]; ok {
+				usage = u
+			}
+		}
+
+		buckets = append(buckets, storage.Bucket{
+			Name:         bucketAttrs.Name,
+			Provider:     storage.GCP,
+			Location:     bucketAttrs.Location,
+			StorageClass: bucketAttrs.StorageClass,
+			CreatedAt:    bucketAttrs.Created,
+			UpdatedAt:    bucketAttrs.Updated,
+			UsageBytes:   usage,
+			Labels:       bucketAttrs.Labels,
+		})
 	}
 
 	return buckets, nil
 }
 
-func (g *GCPStorage) getBucketUsage(ctx context.Context, bucketName string) (int64, error) {
+// Fetches storage metrics for all buckets in the project in one request
+func (g *GCPStorage) getAllBucketUsages(ctx context.Context) (map[string]int64, error) {
 	client, err := monitoring.NewMetricClient(ctx)
 	if err != nil {
-		return 0, fmt.Errorf("failed to create monitoring client: %w", err)
+		return nil, fmt.Errorf("failed to create monitoring client: %w", err)
 	}
 	defer client.Close()
 
 	endTime := time.Now()
-	startTime := endTime.Add(-5 * time.Minute)
+	startTime := endTime.Add(-15 * time.Minute)
 
 	req := &monitoringpb.ListTimeSeriesRequest{
-		Name:   fmt.Sprintf("projects/%s", g.projectID),
-		Filter: fmt.Sprintf(`metric.type="storage.googleapis.com/storage/total_bytes" AND resource.labels.bucket_name="%s"`, bucketName),
+		Name: fmt.Sprintf("projects/%s", g.projectID),
+		// Request metrics for all buckets
+		Filter: `metric.type="storage.googleapis.com/storage/total_bytes"`,
 		Interval: &monitoringpb.TimeInterval{
 			StartTime: timestamppb.New(startTime),
 			EndTime:   timestamppb.New(endTime),
@@ -70,79 +103,66 @@ func (g *GCPStorage) getBucketUsage(ctx context.Context, bucketName string) (int
 		View: monitoringpb.ListTimeSeriesRequest_FULL,
 	}
 
+	usageMap := make(map[string]int64)
 	it := client.ListTimeSeries(ctx, req)
-	resp, err := it.Next()
-	if err == iterator.Done {
-		return 0, nil
-	}
-	if err != nil {
-		return 0, fmt.Errorf("error getting metric data: %w", err)
+
+	for {
+		resp, err := it.Next()
+		if err == iterator.Done {
+			break
+		}
+		if err != nil {
+			return nil, fmt.Errorf("error getting metric data: %w", err)
+		}
+
+		bucketName, ok := resp.GetResource().GetLabels()["bucket_name"]
+		if !ok {
+			continue
+		}
+
+		// Get the latest data point
+		if len(resp.GetPoints()) > 0 {
+			latestPoint := resp.GetPoints()[0]
+			// Ensure we only store the latest point if multiple series somehow match
+			if _, exists := usageMap[bucketName]; !exists {
+				usageMap[bucketName] = latestPoint.GetValue().GetInt64Value()
+			}
+		}
 	}
 
-	if len(resp.GetPoints()) == 0 {
-		return 0, nil
-	}
-
-	latestPoint := resp.GetPoints()[0]
-	value := latestPoint.GetValue().GetInt64Value()
-
-	return value, nil
+	return usageMap, nil
 }
 
-func formatBytes(bytes int64) string {
-	if bytes == 0 {
-		return "0 B"
-	}
-
-	const unit = 1024
-	if bytes < unit {
-		return fmt.Sprintf("%d B", bytes)
-	}
-
-	div, exp := int64(unit), 0
-	for n := bytes / unit; n >= unit; n /= unit {
-		div *= unit
-		exp++
-	}
-
-	sizes := []string{"KB", "MB", "GB", "TB"}
-	return fmt.Sprintf("%.1f %s", float64(bytes)/float64(div), sizes[exp])
-}
-
-// DescribeBucket returns details about a specific bucket
-func (g *GCPStorage) DescribeBucket(bucketName string) (map[string]interface{}, error) {
-	ctx := context.Background()
-
-	bucket := g.client.Bucket(bucketName)
-	attrs, err := bucket.Attrs(ctx)
+func (g *GCPStorage) DescribeBucket(ctx context.Context, bucketName string) (storage.Bucket, error) {
+	bucketHandle := g.client.Bucket(bucketName)
+	attrs, err := bucketHandle.Attrs(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("error getting bucket attributes: %w", err)
+		return storage.Bucket{}, fmt.Errorf("error getting bucket attributes: %w", err)
 	}
 
-	usage, err := g.getBucketUsage(ctx, bucketName)
+	usageMap, err := g.getAllBucketUsages(ctx)
 
-	var usageFormatted string
-
+	usage := int64(-1)
 	if err != nil {
-		usageFormatted = "N/A"
-	} else {
-		usageFormatted = formatBytes(usage)
+		log.Printf("Warning: Failed to retrieve usage for bucket %s: %v\n", bucketName, err)
+	} else if u, ok := usageMap[bucketName]; ok {
+		usage = u
 	}
 
-	details := map[string]interface{}{
-		"name":              attrs.Name,
-		"Location / Region": attrs.Location,
-		"storageClass":      attrs.StorageClass,
-		"created":           attrs.Created,
-		"updated":           attrs.Updated,
-		"Provider":          "Google Cloud",
-		"Usage":             usageFormatted,
+	details := storage.Bucket{
+		Name:         attrs.Name,
+		Provider:     storage.GCP,
+		Location:     attrs.Location,
+		StorageClass: attrs.StorageClass,
+		CreatedAt:    attrs.Created,
+		UpdatedAt:    attrs.Updated,
+		UsageBytes:   usage,
+		Labels:       attrs.Labels,
 	}
 
 	return details, nil
 }
 
-// Close closes the GCP storage client
 func (g *GCPStorage) Close() error {
 	if g.client != nil {
 		return g.client.Close()

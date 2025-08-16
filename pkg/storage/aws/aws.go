@@ -1,37 +1,65 @@
 package aws
 
 import (
+	"context"
 	"fmt"
+	"synkronus/pkg/storage"
+	"time"
 )
 
 type AWSStorage struct {
 	region string
-	bucket string
 }
 
-func NewAWSStorage(region, bucket string) *AWSStorage {
+var _ storage.Storage = (*AWSStorage)(nil)
+
+func NewAWSStorage(region string) *AWSStorage {
 	return &AWSStorage{
 		region: region,
-		bucket: bucket,
 	}
 }
 
-// List all buckets on the specified GCP Project
-func (s *AWSStorage) List() ([]string, error) {
-	// Placeholder implementation
-	return []string{"example-bucket-1", "example-bucket-2"}, nil
+func (s *AWSStorage) ProviderName() storage.Provider {
+	return storage.AWS
 }
 
-func (s *AWSStorage) DescribeBucket(bucketName string) (map[string]string, error) {
-	// Placeholder implementation for bucket details
+func (s *AWSStorage) ListBuckets(ctx context.Context) ([]storage.Bucket, error) {
+	// TODO: Implement actual AWS S3 ListBuckets API call and CloudWatch metrics retrieval
+	// Placeholder implementation updated with structured data
+	return []storage.Bucket{
+		{
+			Name:         "example-bucket-1",
+			Provider:     storage.AWS,
+			Location:     s.region,
+			StorageClass: "STANDARD",
+			CreatedAt:    time.Date(2025, 1, 10, 8, 15, 0, 0, time.UTC),
+			UsageBytes:   1024 * 1024 * 500, // 500MB placeholder
+		},
+		{
+			Name:         "example-bucket-2",
+			Provider:     storage.AWS,
+			Location:     s.region,
+			StorageClass: "GLACIER",
+			CreatedAt:    time.Date(2024, 5, 20, 14, 0, 0, 0, time.UTC),
+			UsageBytes:   -1, // Unknown usage
+		},
+	}, nil
+}
+
+func (s *AWSStorage) DescribeBucket(ctx context.Context, bucketName string) (storage.Bucket, error) {
 	fmt.Printf("Fetching details for AWS S3 bucket: %s in region %s\n", bucketName, s.region)
 
-	return map[string]string{
-		"name":         bucketName,
-		"region":       s.region,
-		"arn":          fmt.Sprintf("arn:aws:s3:::%s", bucketName),
-		"storageClass": "STANDARD",
-		"created":      "2025-01-10T08:15:00Z",
-		"versioning":   "Enabled",
+	return storage.Bucket{
+		Name:         bucketName,
+		Provider:     storage.AWS,
+		Location:     s.region,
+		StorageClass: "STANDARD",
+		CreatedAt:    time.Date(2025, 1, 10, 8, 15, 0, 0, time.UTC),
+		UsageBytes:   1024 * 1024 * 500,
 	}, nil
+}
+
+func (s *AWSStorage) Close() error {
+	// Nothing to close in the placeholder
+	return nil
 }

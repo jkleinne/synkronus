@@ -1,11 +1,14 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
+	"sync"
 
 	"synkronus/internal/config"
 	"synkronus/pkg/formatter"
+	"synkronus/pkg/storage"
 	"synkronus/pkg/storage/aws"
 	"synkronus/pkg/storage/gcp"
 )
@@ -42,31 +45,28 @@ func handleStorageCommand(args []string) {
 	}
 
 	subcommand := args[0]
-	var provider string
+	var providerFlag string
 	var remainingArgs []string
 
-	// Check for provider flags
 	if len(args) > 1 {
 		for i := 1; i < len(args); i++ {
 			switch args[i] {
 			case "--gcp":
-				provider = "gcp"
+				providerFlag = "gcp"
 			case "--aws":
-				provider = "aws"
+				providerFlag = "aws"
 			default:
 				remainingArgs = append(remainingArgs, args[i])
 			}
 		}
 	}
 
-	// Load configuration for storage providers
 	cfg, err := config.LoadConfig()
 	if err != nil {
 		fmt.Printf("Error loading configuration: %v\n", err)
 		os.Exit(1)
 	}
 
-	// Convert Config to map[string]string for provider configuration
 	configMap := map[string]string{}
 	for key, value := range cfg {
 		if strValue, ok := value.(string); ok {
@@ -74,20 +74,22 @@ func handleStorageCommand(args []string) {
 		}
 	}
 
+	ctx := context.Background()
+
 	switch subcommand {
 	case "list":
-		handleStorageList(configMap, provider)
+		handleStorageList(ctx, configMap, providerFlag)
 	case "describe":
 		if len(remainingArgs) < 1 {
 			fmt.Println("Usage: synkronus storage describe <bucket-name> [--gcp|--aws]")
 			fmt.Println("Note: Provider flag is required")
 			os.Exit(1)
 		}
-		if provider == "" {
+		if providerFlag == "" {
 			fmt.Println("Error: Provider flag (--gcp or --aws) is required for the describe subcommand")
 			os.Exit(1)
 		}
-		handleStorageDescribe(configMap, provider, remainingArgs[0])
+		handleStorageDescribe(ctx, configMap, providerFlag, remainingArgs[0])
 	default:
 		fmt.Printf("Unknown storage subcommand: %s\n", subcommand)
 		fmt.Println("Available subcommands: list, describe")
@@ -95,181 +97,112 @@ func handleStorageCommand(args []string) {
 	}
 }
 
-func handleStorageList(configMap map[string]string, provider string) {
-	storageFormatter := formatter.NewStorageFormatter()
-
-	// If no provider specified, list all configured providers
-	if provider == "" {
-		fmt.Println("Listing storage buckets across all configured providers:")
-
-		// Check if GCP is configured
-		if gcpProject, hasProject := configMap["gcp_project"]; hasProject {
-			fmt.Println("Provider: GCP")
-
-			// Initialize GCP client
-			gcpClient, err := gcp.NewGCPStorage(gcpProject, "")
-			if err != nil {
-				fmt.Printf("Error initializing GCP client: %v\n", err)
-				return
-			}
-
-			// Get list of buckets
-			buckets, err := gcpClient.List()
-			if err != nil {
-				fmt.Printf("Error listing GCP buckets: %v\n", err)
-			} else {
-				// Get details for each bucket
-				bucketDetails := make(map[string]map[string]string)
-				for _, bucket := range buckets {
-					details, err := gcpClient.DescribeBucket(bucket)
-					if err == nil {
-						// Convert map[string]interface{} to map[string]string
-						stringDetails := make(map[string]string)
-						for k, v := range details {
-							stringDetails[k] = fmt.Sprintf("%v", v)
-						}
-						bucketDetails[bucket] = stringDetails
-					}
-				}
-
-				// Format and print the table
-				fmt.Println(storageFormatter.FormatBucketList(buckets, "GCP", bucketDetails))
-			}
-		}
-
-		// Check if AWS is configured (simplified, not using formatter for now)
-		if awsRegion, hasRegion := configMap["aws_region"]; hasRegion {
-			fmt.Println("Provider: aws")
-			awsClient := aws.NewAWSStorage(awsRegion, "")
-			buckets, err := awsClient.List()
-			if err != nil {
-				fmt.Printf("Error listing AWS buckets: %v\n", err)
-			} else {
-				for _, bucket := range buckets {
-					fmt.Printf("  - %s\n", bucket)
-				}
-			}
-		}
-		return
-	}
-
-	// List buckets for specific provider
-	fmt.Printf("Listing storage buckets for provider: %s\n", provider)
-
-	switch provider {
+func initializeProvider(ctx context.Context, providerFlag string, configMap map[string]string) (storage.Storage, error) {
+	switch providerFlag {
 	case "gcp":
 		gcpProject, hasProject := configMap["gcp_project"]
-		if !hasProject {
-			fmt.Println("Error: GCP project not configured. Use 'synkronus config set gcp_project <project-id>'")
-			return
+		if !hasProject || gcpProject == "" {
+			return nil, fmt.Errorf("GCP project not configured. Use 'synkronus config set gcp_project <project-id>'")
 		}
-
-		// Initialize GCP client
-		gcpClient, err := gcp.NewGCPStorage(gcpProject, "")
-		if err != nil {
-			fmt.Printf("Error initializing GCP client: %v\n", err)
-			return
-		}
-
-		// Get list of buckets
-		buckets, err := gcpClient.List()
-		if err != nil {
-			fmt.Printf("Error listing GCP buckets: %v\n", err)
-			return
-		}
-
-		// Get details for each bucket
-		bucketDetails := make(map[string]map[string]string)
-		for _, bucket := range buckets {
-			details, err := gcpClient.DescribeBucket(bucket)
-			if err == nil {
-				// Convert map[string]interface{} to map[string]string
-				stringDetails := make(map[string]string)
-				for k, v := range details {
-					stringDetails[k] = fmt.Sprintf("%v", v)
-				}
-				bucketDetails[bucket] = stringDetails
-			}
-		}
-
-		// Format and print the table
-		fmt.Println(storageFormatter.FormatBucketList(buckets, "GCP", bucketDetails))
-
+		return gcp.NewGCPStorage(ctx, gcpProject)
 	case "aws":
 		awsRegion, hasRegion := configMap["aws_region"]
-		if !hasRegion {
-			fmt.Println("Error: AWS region not configured. Use 'synkronus config set aws_region <region>'")
-			return
+		if !hasRegion || awsRegion == "" {
+			return nil, fmt.Errorf("AWS region not configured. Use 'synkronus config set aws_region <region>'")
 		}
-		awsClient := aws.NewAWSStorage(awsRegion, "")
-		buckets, err := awsClient.List()
-		if err != nil {
-			fmt.Printf("Error listing AWS buckets: %v\n", err)
-			return
-		}
-		for _, bucket := range buckets {
-			fmt.Printf("  - %s\n", bucket)
-		}
-
+		return aws.NewAWSStorage(awsRegion), nil
 	default:
-		fmt.Printf("Unsupported provider: %s\n", provider)
+		return nil, fmt.Errorf("unsupported provider: %s", providerFlag)
 	}
 }
 
-func handleStorageDescribe(configMap map[string]string, provider, bucketName string) {
+func handleStorageList(ctx context.Context, configMap map[string]string, providerFlag string) {
+	storageFormatter := formatter.NewStorageFormatter()
+	var providersToQuery []string
+
+	if providerFlag != "" {
+		providersToQuery = append(providersToQuery, providerFlag)
+	} else {
+		if val, ok := configMap["gcp_project"]; ok && val != "" {
+			providersToQuery = append(providersToQuery, "gcp")
+		}
+		if val, ok := configMap["aws_region"]; ok && val != "" {
+			providersToQuery = append(providersToQuery, "aws")
+		}
+	}
+
+	if len(providersToQuery) == 0 {
+		fmt.Println("No providers configured or specified. Configure GCP/AWS using 'synkronus config set'.")
+		return
+	}
+
+	var allBuckets []storage.Bucket
+	var wg sync.WaitGroup
+
+	type fetchResult struct {
+		providerName string
+		buckets      []storage.Bucket
+		err          error
+	}
+	resultsChan := make(chan fetchResult, len(providersToQuery))
+
+	for _, pName := range providersToQuery {
+		wg.Add(1)
+		go func(pName string) {
+			defer wg.Done()
+
+			client, err := initializeProvider(ctx, pName, configMap)
+			if err != nil {
+				resultsChan <- fetchResult{pName, nil, fmt.Errorf("initializing client: %w", err)}
+				return
+			}
+			defer client.Close()
+
+			buckets, err := client.ListBuckets(ctx)
+			if err != nil {
+				err = fmt.Errorf("listing buckets: %w", err)
+			}
+			resultsChan <- fetchResult{pName, buckets, err}
+		}(pName)
+	}
+
+	wg.Wait()
+	close(resultsChan)
+
+	hasError := false
+	for result := range resultsChan {
+		if result.err != nil {
+			fmt.Printf("Error fetching data from %s: %v\n", result.providerName, result.err)
+			hasError = true
+		} else {
+			allBuckets = append(allBuckets, result.buckets...)
+		}
+	}
+
+	if len(allBuckets) > 0 {
+		fmt.Println(storageFormatter.FormatBucketList(allBuckets))
+	} else if !hasError {
+		fmt.Println("No buckets found.")
+	}
+}
+
+func handleStorageDescribe(ctx context.Context, configMap map[string]string, providerFlag, bucketName string) {
 	storageFormatter := formatter.NewStorageFormatter()
 
-	switch provider {
-	case "gcp":
-		gcpProject, hasProject := configMap["gcp_project"]
-		if !hasProject {
-			fmt.Println("Error: GCP project not configured. Use 'synkronus config set gcp_project <project-id>'")
-			return
-		}
-
-		gcpClient, err := gcp.NewGCPStorage(gcpProject, bucketName)
-		if err != nil {
-			fmt.Printf("Error initializing GCP client: %v\n", err)
-			return
-		}
-
-		details, err := gcpClient.DescribeBucket(bucketName)
-		if err != nil {
-			fmt.Printf("Error describing GCP bucket: %v\n", err)
-			return
-		}
-
-		// Convert details from map[string]interface{} to map[string]string
-		stringDetails := make(map[string]string)
-		for key, value := range details {
-			stringDetails[key] = fmt.Sprintf("%v", value)
-		}
-
-		// Format and print the details
-		fmt.Println(storageFormatter.FormatBucketDetails(bucketName, stringDetails))
-
-	case "aws":
-		awsRegion, hasRegion := configMap["aws_region"]
-		if !hasRegion {
-			fmt.Println("Error: AWS region not configured. Use 'synkronus config set aws_region <region>'")
-			return
-		}
-		awsClient := aws.NewAWSStorage(awsRegion, bucketName)
-		details, err := awsClient.DescribeBucket(bucketName)
-		if err != nil {
-			fmt.Printf("Error describing AWS bucket: %v\n", err)
-			return
-		}
-
-		// For AWS we'll stick with the simple output for now
-		fmt.Printf("Details for bucket '%s' on AWS:\n", bucketName)
-		for key, value := range details {
-			fmt.Printf("  %s: %s\n", key, value)
-		}
-
-	default:
-		fmt.Printf("Unsupported provider: %s\n", provider)
+	client, err := initializeProvider(ctx, providerFlag, configMap)
+	if err != nil {
+		fmt.Printf("Error initializing provider: %v\n", err)
+		os.Exit(1)
 	}
+	defer client.Close()
+
+	bucketDetails, err := client.DescribeBucket(ctx, bucketName)
+	if err != nil {
+		fmt.Printf("Error describing bucket '%s' on %s: %v\n", bucketName, providerFlag, err)
+		os.Exit(1)
+	}
+
+	fmt.Println(storageFormatter.FormatBucketDetails(bucketDetails))
 }
 
 func handleSQLCommand(args []string) {
