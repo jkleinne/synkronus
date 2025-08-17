@@ -1,3 +1,4 @@
+// File: pkg/formatter/table.go
 package formatter
 
 import (

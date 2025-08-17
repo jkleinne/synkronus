@@ -1,3 +1,4 @@
+// File: cmd/synkronus/root.go
 package main
 
 import (
