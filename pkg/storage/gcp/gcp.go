@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"synkronus/pkg/common"
 	"time"
 
 	"synkronus/pkg/storage"
@@ -34,8 +35,8 @@ func NewGCPStorage(ctx context.Context, projectID string) (*GCPStorage, error) {
 	}, nil
 }
 
-func (g *GCPStorage) ProviderName() storage.Provider {
-	return storage.GCP
+func (g *GCPStorage) ProviderName() common.Provider {
+	return common.GCP
 }
 
 func (g *GCPStorage) ListBuckets(ctx context.Context) ([]storage.Bucket, error) {
@@ -68,7 +69,7 @@ func (g *GCPStorage) ListBuckets(ctx context.Context) ([]storage.Bucket, error) 
 
 		buckets = append(buckets, storage.Bucket{
 			Name:         bucketAttrs.Name,
-			Provider:     storage.GCP,
+			Provider:     common.GCP,
 			Location:     bucketAttrs.Location,
 			StorageClass: bucketAttrs.StorageClass,
 			CreatedAt:    bucketAttrs.Created,
@@ -151,7 +152,7 @@ func (g *GCPStorage) DescribeBucket(ctx context.Context, bucketName string) (sto
 
 	details := storage.Bucket{
 		Name:         attrs.Name,
-		Provider:     storage.GCP,
+		Provider:     common.GCP,
 		Location:     attrs.Location,
 		StorageClass: attrs.StorageClass,
 		CreatedAt:    attrs.Created,

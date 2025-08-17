@@ -2,19 +2,13 @@ package storage
 
 import (
 	"fmt"
+	"synkronus/pkg/common"
 	"time"
-)
-
-type Provider string
-
-const (
-	GCP Provider = "GCP"
-	AWS Provider = "AWS"
 )
 
 type Bucket struct {
 	Name         string
-	Provider     Provider
+	Provider     common.Provider
 	Location     string
 	StorageClass string
 	CreatedAt    time.Time
