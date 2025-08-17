@@ -1,3 +1,4 @@
+// File: pkg/storage/gcp/gcp.go
 package gcp
 
 import (
@@ -162,6 +163,25 @@ func (g *GCPStorage) DescribeBucket(ctx context.Context, bucketName string) (sto
 	}
 
 	return details, nil
+}
+
+func (g *GCPStorage) CreateBucket(ctx context.Context, bucketName string, location string) error {
+	bucket := g.client.Bucket(bucketName)
+	attrs := &gcpstorage.BucketAttrs{
+		Location: location,
+	}
+	if err := bucket.Create(ctx, g.projectID, attrs); err != nil {
+		return fmt.Errorf("failed to create bucket: %w", err)
+	}
+	return nil
+}
+
+func (g *GCPStorage) DeleteBucket(ctx context.Context, bucketName string) error {
+	bucket := g.client.Bucket(bucketName)
+	if err := bucket.Delete(ctx); err != nil {
+		return fmt.Errorf("failed to delete bucket: %w", err)
+	}
+	return nil
 }
 
 func (g *GCPStorage) Close() error {
