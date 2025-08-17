@@ -3,6 +3,7 @@ package aws
 import (
 	"context"
 	"fmt"
+	"synkronus/pkg/common"
 	"synkronus/pkg/storage"
 	"time"
 )
@@ -19,8 +20,8 @@ func NewAWSStorage(region string) *AWSStorage {
 	}
 }
 
-func (s *AWSStorage) ProviderName() storage.Provider {
-	return storage.AWS
+func (s *AWSStorage) ProviderName() common.Provider {
+	return common.AWS
 }
 
 func (s *AWSStorage) ListBuckets(ctx context.Context) ([]storage.Bucket, error) {
@@ -29,7 +30,7 @@ func (s *AWSStorage) ListBuckets(ctx context.Context) ([]storage.Bucket, error) 
 	return []storage.Bucket{
 		{
 			Name:         "example-bucket-1",
-			Provider:     storage.AWS,
+			Provider:     common.AWS,
 			Location:     s.region,
 			StorageClass: "STANDARD",
 			CreatedAt:    time.Date(2025, 1, 10, 8, 15, 0, 0, time.UTC),
@@ -37,7 +38,7 @@ func (s *AWSStorage) ListBuckets(ctx context.Context) ([]storage.Bucket, error) 
 		},
 		{
 			Name:         "example-bucket-2",
-			Provider:     storage.AWS,
+			Provider:     common.AWS,
 			Location:     s.region,
 			StorageClass: "GLACIER",
 			CreatedAt:    time.Date(2024, 5, 20, 14, 0, 0, 0, time.UTC),
@@ -51,7 +52,7 @@ func (s *AWSStorage) DescribeBucket(ctx context.Context, bucketName string) (sto
 
 	return storage.Bucket{
 		Name:         bucketName,
-		Provider:     storage.AWS,
+		Provider:     common.AWS,
 		Location:     s.region,
 		StorageClass: "STANDARD",
 		CreatedAt:    time.Date(2025, 1, 10, 8, 15, 0, 0, time.UTC),
