@@ -1,5 +1,7 @@
 package main
 
+import "synkronus/cmd/synkronus/cmd"
+
 func main() {
-	Execute()
+	cmd.Execute()
 }
