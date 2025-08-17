@@ -3,10 +3,10 @@ package main
 import (
 	"context"
 	"fmt"
-	"os"
 	"sync"
 
 	"github.com/spf13/cobra"
+	"golang.org/x/sync/errgroup"
 	"synkronus/internal/config"
 	"synkronus/pkg/formatter"
 	"synkronus/pkg/storage"
@@ -29,7 +29,7 @@ var storageListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List storage buckets",
 	Long:  `Lists all storage buckets from the configured cloud providers. Use flags to specify a provider.`,
-	Run:   runStorageList,
+	RunE:  runStorageList,
 }
 
 var storageDescribeCmd = &cobra.Command{
@@ -37,7 +37,7 @@ var storageDescribeCmd = &cobra.Command{
 	Short: "Describe a specific storage bucket",
 	Long:  `Provides detailed information about a specific storage bucket. You must specify the bucket name and the provider flag (--gcp or --aws).`,
 	Args:  cobra.ExactArgs(1),
-	Run:   runStorageDescribe,
+	RunE:  runStorageDescribe,
 }
 
 func init() {
@@ -70,7 +70,7 @@ func initializeProvider(ctx context.Context, providerFlag string, configMap map[
 func getConfigAsMap() (map[string]string, error) {
 	cfg, err := config.LoadConfig()
 	if err != nil {
-		return nil, fmt.Errorf("Error loading configuration: %v\n", err)
+		return nil, fmt.Errorf("error loading configuration: %w", err)
 	}
 
 	configMap := make(map[string]string)
@@ -82,11 +82,10 @@ func getConfigAsMap() (map[string]string, error) {
 	return configMap, nil
 }
 
-func runStorageList(cmd *cobra.Command, args []string) {
+func runStorageList(cmd *cobra.Command, args []string) error {
 	configMap, err := getConfigAsMap()
 	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
+		return err
 	}
 
 	storageFormatter := formatter.NewStorageFormatter()
@@ -112,66 +111,54 @@ func runStorageList(cmd *cobra.Command, args []string) {
 
 	if len(providersToQuery) == 0 {
 		fmt.Println("No providers configured or specified. Configure GCP/AWS using 'synkronus config set'.")
-		return
+		return nil
 	}
 
 	var allBuckets []storage.Bucket
-	var wg sync.WaitGroup
-	ctx := context.Background()
-
-	type fetchResult struct {
-		providerName string
-		buckets      []storage.Bucket
-		err          error
-	}
-	resultsChan := make(chan fetchResult, len(providersToQuery))
+	var mu sync.Mutex
+	g, ctx := errgroup.WithContext(cmd.Context())
 
 	for _, pName := range providersToQuery {
-		wg.Add(1)
-		go func(pName string) {
-			defer wg.Done()
-
+		// Capture pName for the goroutine
+		pName := pName
+		g.Go(func() error {
 			client, err := initializeProvider(ctx, pName, configMap)
 			if err != nil {
-				resultsChan <- fetchResult{pName, nil, fmt.Errorf("initializing client: %w", err)}
-				return
+				return fmt.Errorf("initializing client for %s: %w", pName, err)
 			}
 			defer client.Close()
 
 			buckets, err := client.ListBuckets(ctx)
 			if err != nil {
-				err = fmt.Errorf("listing buckets: %w", err)
+				return fmt.Errorf("listing buckets from %s: %w", pName, err)
 			}
-			resultsChan <- fetchResult{pName, buckets, err}
-		}(pName)
+
+			mu.Lock()
+			allBuckets = append(allBuckets, buckets...)
+			mu.Unlock()
+
+			return nil
+		})
 	}
 
-	wg.Wait()
-	close(resultsChan)
-
-	hasError := false
-	for result := range resultsChan {
-		if result.err != nil {
-			fmt.Printf("Error fetching data from %s: %v\n", result.providerName, result.err)
-			hasError = true
-		} else {
-			allBuckets = append(allBuckets, result.buckets...)
-		}
+	if err := g.Wait(); err != nil {
+		return err
 	}
 
 	if len(allBuckets) > 0 {
 		fmt.Println(storageFormatter.FormatBucketList(allBuckets))
-	} else if !hasError {
+	} else {
 		fmt.Println("No buckets found.")
 	}
+
+	return nil
 }
 
-func runStorageDescribe(cmd *cobra.Command, args []string) {
+func runStorageDescribe(cmd *cobra.Command, args []string) error {
 	bucketName := args[0]
 
 	if (!gcpProvider && !awsProvider) || (gcpProvider && awsProvider) {
-		fmt.Println("Error: You must specify exactly one provider flag (--gcp or --aws) for the describe command.")
-		os.Exit(1)
+		return fmt.Errorf("you must specify exactly one provider flag (--gcp or --aws) for the describe command")
 	}
 
 	var providerFlag string
@@ -183,25 +170,23 @@ func runStorageDescribe(cmd *cobra.Command, args []string) {
 
 	configMap, err := getConfigAsMap()
 	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
+		return err
 	}
 
 	storageFormatter := formatter.NewStorageFormatter()
-	ctx := context.Background()
+	ctx := cmd.Context()
 
 	client, err := initializeProvider(ctx, providerFlag, configMap)
 	if err != nil {
-		fmt.Printf("Error initializing provider: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("error initializing provider: %w", err)
 	}
 	defer client.Close()
 
 	bucketDetails, err := client.DescribeBucket(ctx, bucketName)
 	if err != nil {
-		fmt.Printf("Error describing bucket '%s' on %s: %v\n", bucketName, providerFlag, err)
-		os.Exit(1)
+		return fmt.Errorf("error describing bucket '%s' on %s: %w", bucketName, providerFlag, err)
 	}
 
 	fmt.Println(storageFormatter.FormatBucketDetails(bucketDetails))
+	return nil
 }
