@@ -16,9 +16,10 @@ var sqlCmd = &cobra.Command{
 var sqlListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List SQL resources",
-	Run: func(cmd *cobra.Command, args []string) {
+	RunE: func(cmd *cobra.Command, args []string) error {
 		fmt.Println("Listing SQL resources...")
 		// TODO: Implement SQL listing functionality
+		return nil
 	},
 }
 

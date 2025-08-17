@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/spf13/cobra"
 	"synkronus/internal/config"
@@ -19,15 +18,15 @@ var configSetCmd = &cobra.Command{
 	Short: "Set a configuration key-value pair",
 	Long:  `Sets a configuration value. For example: 'synkronus config set gcp_project my-gcp-123'`,
 	Args:  cobra.ExactArgs(2),
-	Run: func(cmd *cobra.Command, args []string) {
+	RunE: func(cmd *cobra.Command, args []string) error {
 		key := args[0]
 		value := args[1]
 
 		if err := config.SetValue(key, value); err != nil {
-			fmt.Printf("Error setting configuration: %v\n", err)
-			os.Exit(1)
+			return fmt.Errorf("error setting configuration: %v", err)
 		}
 		fmt.Printf("Configuration set: %s = %s\n", key, value)
+		return nil
 	},
 }
 
@@ -36,20 +35,19 @@ var configGetCmd = &cobra.Command{
 	Short: "Get a configuration value by key",
 	Long:  `Retrieves a configuration value for a given key.`,
 	Args:  cobra.ExactArgs(1),
-	Run: func(cmd *cobra.Command, args []string) {
+	RunE: func(cmd *cobra.Command, args []string) error {
 		key := args[0]
 		value, exists, err := config.GetValue(key)
 
 		if err != nil {
-			fmt.Printf("Error getting configuration: %v\n", err)
-			os.Exit(1)
+			return fmt.Errorf("error getting configuration: %v", err)
 		}
 
 		if !exists {
-			fmt.Printf("Configuration key '%s' not found\n", key)
-			os.Exit(1)
+			return fmt.Errorf("configuration key '%s' not found", key)
 		}
 		fmt.Printf("%s = %v\n", key, value)
+		return nil
 	},
 }
 
@@ -58,20 +56,19 @@ var configDeleteCmd = &cobra.Command{
 	Short: "Delete a configuration value by key",
 	Long:  `Deletes a configuration value for a given key.`,
 	Args:  cobra.ExactArgs(1),
-	Run: func(cmd *cobra.Command, args []string) {
+	RunE: func(cmd *cobra.Command, args []string) error {
 		key := args[0]
 		deleted, err := config.DeleteValue(key)
 
 		if err != nil {
-			fmt.Printf("Error deleting configuration: %v\n", err)
-			os.Exit(1)
+			return fmt.Errorf("error deleting configuration: %v", err)
 		}
 
 		if !deleted {
-			fmt.Printf("Configuration key '%s' not found\n", key)
-			os.Exit(1)
+			return fmt.Errorf("configuration key '%s' not found", key)
 		}
 		fmt.Printf("Configuration key '%s' deleted\n", key)
+		return nil
 	},
 }
 
@@ -79,22 +76,22 @@ var configListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List all current configuration values",
 	Long:  `Displays all the key-value pairs currently stored in the configuration.`,
-	Run: func(cmd *cobra.Command, args []string) {
+	RunE: func(cmd *cobra.Command, args []string) error {
 		configValues, err := config.ListValues()
 		if err != nil {
-			fmt.Printf("Error listing configuration: %v\n", err)
-			os.Exit(1)
+			return fmt.Errorf("error listing configuration: %v", err)
 		}
 
 		if len(configValues) == 0 {
 			fmt.Println("No configuration values set")
-			return
+			return nil
 		}
 
 		fmt.Println("Current configuration:")
 		for key, value := range configValues {
 			fmt.Printf("  %s = %v\n", key, value)
 		}
+		return nil
 	},
 }
 
