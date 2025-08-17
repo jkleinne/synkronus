@@ -1,3 +1,4 @@
+// File: go.mod
 module synkronus
 
 go 1.23.0
@@ -8,6 +9,7 @@ require (
 	cloud.google.com/go/monitoring v1.21.2
 	cloud.google.com/go/storage v1.50.0
 	github.com/spf13/cobra v1.8.1
+	golang.org/x/sync v0.11.0
 	google.golang.org/api v0.223.0
 	google.golang.org/protobuf v1.36.5
 )
@@ -50,7 +52,6 @@ require (
 	golang.org/x/crypto v0.33.0 // indirect
 	golang.org/x/net v0.35.0 // indirect
 	golang.org/x/oauth2 v0.26.0 // indirect
-	golang.org/x/sync v0.11.0 // indirect
 	golang.org/x/sys v0.30.0 // indirect
 	golang.org/x/text v0.22.0 // indirect
 	golang.org/x/time v0.10.0 // indirect

@@ -6,6 +6,7 @@ import (
 	"sync"
 
 	"github.com/spf13/cobra"
+	"golang.org/x/sync/errgroup"
 	"synkronus/internal/config"
 	"synkronus/pkg/formatter"
 	"synkronus/pkg/storage"
@@ -114,52 +115,39 @@ func runStorageList(cmd *cobra.Command, args []string) error {
 	}
 
 	var allBuckets []storage.Bucket
-	var wg sync.WaitGroup
-	ctx := context.Background()
-
-	type fetchResult struct {
-		providerName string
-		buckets      []storage.Bucket
-		err          error
-	}
-	resultsChan := make(chan fetchResult, len(providersToQuery))
+	var mu sync.Mutex
+	g, ctx := errgroup.WithContext(cmd.Context())
 
 	for _, pName := range providersToQuery {
-		wg.Add(1)
-		go func(pName string) {
-			defer wg.Done()
-
+		// Capture pName for the goroutine
+		pName := pName
+		g.Go(func() error {
 			client, err := initializeProvider(ctx, pName, configMap)
 			if err != nil {
-				resultsChan <- fetchResult{pName, nil, fmt.Errorf("initializing client: %w", err)}
-				return
+				return fmt.Errorf("initializing client for %s: %w", pName, err)
 			}
 			defer client.Close()
 
 			buckets, err := client.ListBuckets(ctx)
 			if err != nil {
-				err = fmt.Errorf("listing buckets: %w", err)
+				return fmt.Errorf("listing buckets from %s: %w", pName, err)
 			}
-			resultsChan <- fetchResult{pName, buckets, err}
-		}(pName)
+
+			mu.Lock()
+			allBuckets = append(allBuckets, buckets...)
+			mu.Unlock()
+
+			return nil
+		})
 	}
 
-	wg.Wait()
-	close(resultsChan)
-
-	hasError := false
-	for result := range resultsChan {
-		if result.err != nil {
-			fmt.Printf("Error fetching data from %s: %v\n", result.providerName, result.err)
-			hasError = true
-		} else {
-			allBuckets = append(allBuckets, result.buckets...)
-		}
+	if err := g.Wait(); err != nil {
+		return err
 	}
 
 	if len(allBuckets) > 0 {
 		fmt.Println(storageFormatter.FormatBucketList(allBuckets))
-	} else if !hasError {
+	} else {
 		fmt.Println("No buckets found.")
 	}
 
@@ -186,7 +174,7 @@ func runStorageDescribe(cmd *cobra.Command, args []string) error {
 	}
 
 	storageFormatter := formatter.NewStorageFormatter()
-	ctx := context.Background()
+	ctx := cmd.Context()
 
 	client, err := initializeProvider(ctx, providerFlag, configMap)
 	if err != nil {
