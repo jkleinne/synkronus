@@ -6,11 +6,9 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
-	"synkronus/internal/config"
 )
 
-func newConfigCmd() *cobra.Command {
+func newConfigCmd(app *appContainer) *cobra.Command {
 	configCmd := &cobra.Command{
 		Use:   "config",
 		Short: "Manage configuration settings",
@@ -26,7 +24,7 @@ func newConfigCmd() *cobra.Command {
 			key := strings.ToLower(args[0])
 			value := args[1]
 
-			if err := config.SetValue(key, value); err != nil {
+			if err := app.ConfigManager.SetValue(key, value); err != nil {
 				return fmt.Errorf("error setting configuration: %v", err)
 			}
 			fmt.Printf("Configuration set: %s = %s\n", key, value)
@@ -41,11 +39,7 @@ func newConfigCmd() *cobra.Command {
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			key := strings.ToLower(args[0])
-			value, exists, err := config.GetValue(key)
-
-			if err != nil {
-				return fmt.Errorf("error getting configuration: %v", err)
-			}
+			value, exists := app.ConfigManager.GetValue(key)
 
 			if !exists || value == "" {
 				return fmt.Errorf("configuration key '%s' not found or not set", key)
@@ -62,7 +56,7 @@ func newConfigCmd() *cobra.Command {
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			key := strings.ToLower(args[0])
-			deleted, err := config.DeleteValue(key)
+			deleted, err := app.ConfigManager.DeleteValue(key)
 
 			if err != nil {
 				return fmt.Errorf("error deleting configuration: %v", err)
@@ -84,13 +78,20 @@ func newConfigCmd() *cobra.Command {
 			var output strings.Builder
 			hasValues := false
 
-			if val := viper.GetString("gcp.project"); val != "" {
-				output.WriteString(fmt.Sprintf("  gcp.project = %s\n", val))
-				hasValues = true
+			settings := app.ConfigManager.GetAllSettings()
+
+			if gcpSettings, ok := settings["gcp"].(map[string]interface{}); ok {
+				if project, ok := gcpSettings["project"].(string); ok && project != "" {
+					output.WriteString(fmt.Sprintf("  gcp.project = %s\n", project))
+					hasValues = true
+				}
 			}
-			if val := viper.GetString("aws.region"); val != "" {
-				output.WriteString(fmt.Sprintf("  aws.region = %s\n", val))
-				hasValues = true
+
+			if awsSettings, ok := settings["aws"].(map[string]interface{}); ok {
+				if region, ok := awsSettings["region"].(string); ok && region != "" {
+					output.WriteString(fmt.Sprintf("  aws.region = %s\n", region))
+					hasValues = true
+				}
 			}
 
 			if !hasValues {

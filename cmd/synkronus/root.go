@@ -20,7 +20,7 @@ manage your infrastructure from one place.`,
 	}
 
 	cmd.AddCommand(newStorageCmd(app))
-	cmd.AddCommand(newConfigCmd())
+	cmd.AddCommand(newConfigCmd(app))
 	cmd.AddCommand(newSqlCmd())
 
 	return cmd
