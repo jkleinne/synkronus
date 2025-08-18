@@ -2,11 +2,14 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 
+	"github.com/go-playground/validator/v10"
+	"github.com/go-viper/mapstructure/v2"
 	"github.com/spf13/viper"
 )
 
@@ -16,31 +19,28 @@ const (
 )
 
 type GCPConfig struct {
-	Project string `json:"project,omitempty"`
+	Project string `json:"project,omitempty" validate:"required"`
 }
 
 type AWSConfig struct {
-	Region string `json:"region,omitempty"`
+	Region string `json:"region,omitempty" validate:"required"`
 }
 
 type Config struct {
-	GCP *GCPConfig `json:"gcp,omitempty"`
-	AWS *AWSConfig `json:"aws,omitempty"`
+	GCP *GCPConfig `json:"gcp,omitempty" validate:"omitempty"`
+	AWS *AWSConfig `json:"aws,omitempty" validate:"omitempty"`
 }
 
-// ConfigManager encapsulates all configuration logic, managing its own viper instance
 type ConfigManager struct {
-	v *viper.Viper
+	v         *viper.Viper
+	validator *validator.Validate
 }
 
-// Creates and initializes a new ConfigManager
-// It sets up a new viper instance, defines config paths, and reads the configuration from the file
 func NewConfigManager() (*ConfigManager, error) {
 	v := viper.New()
 
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
-		// This is unlikely to fail, but if it does, Viper will only look in the current directory
 	}
 
 	configDir := filepath.Join(homeDir, ".config", ConfigDirName)
@@ -52,17 +52,19 @@ func NewConfigManager() (*ConfigManager, error) {
 
 	if err := v.ReadInConfig(); err != nil {
 		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
-			// A real error occurred (e.g., malformed JSON)
 			return nil, fmt.Errorf("error reading config file: %w", err)
 		}
 	}
 
-	return &ConfigManager{v: v}, nil
+	return &ConfigManager{
+		v:         v,
+		validator: validator.New(),
+	}, nil
 }
 
 func (cm *ConfigManager) LoadConfig() (*Config, error) {
 	var config Config
-	if err := cm.v.Unmarshal(&config); err != nil {
+	if err := cm.unmarshalStrict(&config); err != nil {
 		return nil, fmt.Errorf("error parsing config file: %w", err)
 	}
 	return &config, nil
@@ -79,7 +81,6 @@ func (cm *ConfigManager) SaveConfig() error {
 		return fmt.Errorf("error creating config directory: %w", err)
 	}
 
-	// Use Viper's atomic WriteConfigAs to prevent corruption
 	if err := cm.v.WriteConfigAs(configPath); err != nil {
 		return fmt.Errorf("error writing config file: %w", err)
 	}
@@ -88,29 +89,19 @@ func (cm *ConfigManager) SaveConfig() error {
 }
 
 func (cm *ConfigManager) SetValue(key, value string) error {
-	parts := strings.SplitN(key, ".", 2)
-	if len(parts) != 2 {
-		return fmt.Errorf("invalid config key format: %s. Use format like 'provider.key' (e.g., 'gcp.project')", key)
-	}
-
-	provider := parts[0]
-	field := parts[1]
-
-	// Validate the key to prevent arbitrary keys from being set
-	switch provider {
-	case "gcp":
-		if field != "project" {
-			return fmt.Errorf("unknown config key for gcp: %s", field)
-		}
-	case "aws":
-		if field != "region" {
-			return fmt.Errorf("unknown config key for aws: %s", field)
-		}
-	default:
-		return fmt.Errorf("unknown provider in config key: %s", provider)
-	}
-
 	cm.v.Set(key, value)
+
+	var config Config
+	if err := cm.unmarshalStrict(&config); err != nil {
+		cm.v.ReadInConfig() // Revert
+		return err
+	}
+
+	if err := cm.validateConfig(&config); err != nil {
+		cm.v.ReadInConfig() // Revert
+		return err
+	}
+
 	return cm.SaveConfig()
 }
 
@@ -129,9 +120,22 @@ func (cm *ConfigManager) DeleteValue(key string) (bool, error) {
 	}
 
 	cm.v.Set(key, "")
+
+	var config Config
+	if err := cm.unmarshalStrict(&config); err != nil {
+		cm.v.ReadInConfig() // Revert
+		return false, fmt.Errorf("error parsing config after deletion: %w", err)
+	}
+
+	if err := cm.validateConfig(&config); err != nil {
+		cm.v.ReadInConfig() // Revert
+		return false, fmt.Errorf("cannot delete key '%s': %w", key, err)
+	}
+
 	if err := cm.SaveConfig(); err != nil {
 		return false, err
 	}
+
 	return true, nil
 }
 
@@ -147,4 +151,41 @@ func (cm *ConfigManager) getPreferredConfigPath() (string, error) {
 
 	configDir := filepath.Join(homeDir, ".config", ConfigDirName)
 	return filepath.Join(configDir, ConfigFileName), nil
+}
+
+func (cm *ConfigManager) unmarshalStrict(target interface{}) error {
+	decoder, err := mapstructure.NewDecoder(&mapstructure.DecoderConfig{
+		Result:      target,
+		ErrorUnused: true,
+	})
+	if err != nil {
+		return fmt.Errorf("internal error: failed to create config decoder: %w", err)
+	}
+
+	if err := decoder.Decode(cm.v.AllSettings()); err != nil {
+		if strings.Contains(err.Error(), "invalid keys") || strings.Contains(err.Error(), "unused keys") {
+			return fmt.Errorf("unrecognized configuration key provided. Please use a valid key (e.g., 'gcp.project')")
+		}
+		return err
+	}
+	return nil
+}
+
+func (cm *ConfigManager) validateConfig(config *Config) error {
+	err := cm.validator.Struct(config)
+	if err == nil {
+		return nil
+	}
+
+	var validationErrors validator.ValidationErrors
+	if errors.As(err, &validationErrors) {
+		var errs []string
+		for _, fe := range validationErrors {
+			namespace := strings.ToLower(fe.Namespace())
+			errs = append(errs, fmt.Sprintf("field '%s' is invalid (rule: %s)", namespace, fe.Tag()))
+		}
+		return fmt.Errorf("configuration validation failed: %s", strings.Join(errs, "; "))
+	}
+
+	return fmt.Errorf("invalid configuration: %w", err)
 }
