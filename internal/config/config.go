@@ -2,7 +2,6 @@
 package config
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -80,13 +79,8 @@ func (cm *ConfigManager) SaveConfig() error {
 		return fmt.Errorf("error creating config directory: %w", err)
 	}
 
-	settings := cm.v.AllSettings()
-	data, err := json.MarshalIndent(settings, "", "  ")
-	if err != nil {
-		return fmt.Errorf("error encoding config: %w", err)
-	}
-
-	if err := os.WriteFile(configPath, data, 0600); err != nil {
+	// Use Viper's atomic WriteConfigAs to prevent corruption
+	if err := cm.v.WriteConfigAs(configPath); err != nil {
 		return fmt.Errorf("error writing config file: %w", err)
 	}
 
