@@ -1,3 +1,4 @@
+// File: cmd/synkronus/sql_cmd.go
 package main
 
 import (

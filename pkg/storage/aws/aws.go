@@ -1,3 +1,4 @@
+// File: pkg/storage/aws/aws.go
 package aws
 
 import (
@@ -58,6 +59,14 @@ func (s *AWSStorage) DescribeBucket(ctx context.Context, bucketName string) (sto
 		CreatedAt:    time.Date(2025, 1, 10, 8, 15, 0, 0, time.UTC),
 		UsageBytes:   1024 * 1024 * 500,
 	}, nil
+}
+
+func (s *AWSStorage) CreateBucket(ctx context.Context, bucketName string, location string) error {
+	return fmt.Errorf("AWS CreateBucket is not yet implemented")
+}
+
+func (s *AWSStorage) DeleteBucket(ctx context.Context, bucketName string) error {
+	return fmt.Errorf("AWS DeleteBucket is not yet implemented")
 }
 
 func (s *AWSStorage) Close() error {
