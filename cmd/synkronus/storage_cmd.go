@@ -3,6 +3,7 @@ package main
 
 import (
 	"fmt"
+	"synkronus/internal/config"
 
 	"github.com/spf13/cobra"
 )
@@ -28,7 +29,10 @@ func newStorageCmd(app *appContainer) *cobra.Command {
 		Short: "List storage buckets",
 		Long:  `Lists all storage buckets from the configured cloud providers. Use flags to specify a provider.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			allBuckets, err := app.StorageService.ListAllBuckets(cmd.Context(), gcpProvider, awsProvider)
+			// Resolve which providers the user intends to query
+			providersToQuery := resolveProviders(gcpProvider, awsProvider, app.Config)
+
+			allBuckets, err := app.StorageService.ListAllBuckets(cmd.Context(), providersToQuery)
 			if err != nil {
 				return err
 			}
@@ -36,7 +40,11 @@ func newStorageCmd(app *appContainer) *cobra.Command {
 			if len(allBuckets) > 0 {
 				fmt.Println(app.StorageFormatter.FormatBucketList(allBuckets))
 			} else {
-				fmt.Println("No providers configured or specified, or no buckets found. Configure providers using 'synkronus config set'.")
+				if len(providersToQuery) == 0 {
+					fmt.Println("No providers configured or specified. Use 'synkronus config set' or provider flags (--gcp, --aws).")
+				} else {
+					fmt.Println("No buckets found.")
+				}
 			}
 			return nil
 		},
@@ -133,4 +141,39 @@ func newStorageCmd(app *appContainer) *cobra.Command {
 
 	storageCmd.AddCommand(listCmd, describeCmd, createCmd, deleteCmd)
 	return storageCmd
+}
+
+// Determines the list of provider names based on CLI flags and configuration
+func resolveProviders(useGCP, useAWS bool, cfg *config.Config) []string {
+	var providersToQuery []string
+
+	// Determine intent based on flags
+	onlyGCP := useGCP && !useAWS
+	onlyAWS := useAWS && !useGCP
+	// If no flags are provided, the default is to query all configured providers
+	noFlags := !useGCP && !useAWS
+
+	if onlyGCP {
+		return append(providersToQuery, "gcp")
+	}
+
+	if onlyAWS {
+		return append(providersToQuery, "aws")
+	}
+
+	// Requesting both (explicitly via --gcp and --aws) or implicitly (via no flags)
+	gcpConfigured := cfg.GCP != nil && cfg.GCP.Project != ""
+	awsConfigured := cfg.AWS != nil && cfg.AWS.Region != ""
+
+	// Include GCP if explicitly requested OR if no flags were set AND GCP is configured
+	if useGCP || (noFlags && gcpConfigured) {
+		providersToQuery = append(providersToQuery, "gcp")
+	}
+
+	// Include AWS if explicitly requested OR if no flags were set AND AWS is configured
+	if useAWS || (noFlags && awsConfigured) {
+		providersToQuery = append(providersToQuery, "aws")
+	}
+
+	return providersToQuery
 }
