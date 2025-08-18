@@ -9,7 +9,7 @@ require (
 	cloud.google.com/go/monitoring v1.21.2
 	cloud.google.com/go/storage v1.50.0
 	github.com/go-playground/validator/v10 v10.22.0
-	github.com/go-viper/mapstructure/v2 v2.2.1
+	github.com/go-viper/mapstructure/v2 v2.3.0
 	github.com/spf13/cobra v1.8.1
 	github.com/spf13/viper v1.20.1
 	google.golang.org/api v0.223.0
