@@ -4,20 +4,22 @@ package service
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"sync"
 
-	"golang.org/x/sync/errgroup"
 	"synkronus/internal/provider"
 	"synkronus/pkg/storage"
 )
 
 type StorageService struct {
 	providerFactory *provider.Factory
+	logger          *slog.Logger
 }
 
-func NewStorageService(providerFactory *provider.Factory) *StorageService {
+func NewStorageService(providerFactory *provider.Factory, logger *slog.Logger) *StorageService {
 	return &StorageService{
 		providerFactory: providerFactory,
+		logger:          logger.With("service", "StorageService"),
 	}
 }
 
@@ -26,65 +28,95 @@ func (s *StorageService) ListAllBuckets(ctx context.Context, providerNames []str
 		return nil, nil
 	}
 
+	s.logger.Debug("Starting ListAllBuckets operation", "providers", providerNames)
+
 	var allBuckets []storage.Bucket
 	var mu sync.Mutex
-	g, gCtx := errgroup.WithContext(ctx)
+	var wg sync.WaitGroup
 
 	for _, pName := range providerNames {
-		pName := pName // Capture pName for the goroutine
-		g.Go(func() error {
-			client, err := s.providerFactory.GetStorageProvider(gCtx, pName)
+		wg.Add(1)
+		go func(pName string) {
+			defer wg.Done()
+
+			client, err := s.providerFactory.GetStorageProvider(ctx, pName)
 			if err != nil {
-				return fmt.Errorf("initializing client for %s: %w", pName, err)
+				s.logger.Error("Failed to initialize provider client", "provider", pName, "error", err)
+				return
 			}
 			defer client.Close()
 
-			buckets, err := client.ListBuckets(gCtx)
+			buckets, err := client.ListBuckets(ctx)
 			if err != nil {
-				return fmt.Errorf("listing buckets from %s: %w", pName, err)
+				s.logger.Error("Failed to list buckets from provider", "provider", pName, "error", err)
+				return
 			}
 
+			// Safely append successful results
 			mu.Lock()
 			allBuckets = append(allBuckets, buckets...)
 			mu.Unlock()
 
-			return nil
-		})
+			s.logger.Debug("Successfully fetched buckets", "provider", pName, "count", len(buckets))
+		}(pName)
 	}
 
-	if err := g.Wait(); err != nil {
-		return nil, err
-	}
+	wg.Wait()
 
+	// The operation itself succeeded, even if some providers failed
 	return allBuckets, nil
 }
 
 func (s *StorageService) DescribeBucket(ctx context.Context, bucketName, providerName string) (storage.Bucket, error) {
+	s.logger.Debug("Starting DescribeBucket operation", "bucket", bucketName, "provider", providerName)
+
 	client, err := s.providerFactory.GetStorageProvider(ctx, providerName)
 	if err != nil {
+		s.logger.Error("Failed to initialize provider", "provider", providerName, "error", err)
 		return storage.Bucket{}, fmt.Errorf("error initializing provider: %w", err)
 	}
 	defer client.Close()
 
-	return client.DescribeBucket(ctx, bucketName)
+	bucket, err := client.DescribeBucket(ctx, bucketName)
+	if err != nil {
+		s.logger.Error("Failed to describe bucket", "bucket", bucketName, "provider", providerName, "error", err)
+		return storage.Bucket{}, err
+	}
+	return bucket, nil
 }
 
 func (s *StorageService) CreateBucket(ctx context.Context, bucketName, providerName, location string) error {
+	s.logger.Debug("Starting CreateBucket operation", "bucket", bucketName, "provider", providerName, "location", location)
+
 	client, err := s.providerFactory.GetStorageProvider(ctx, providerName)
 	if err != nil {
+		s.logger.Error("Failed to initialize provider", "provider", providerName, "error", err)
 		return fmt.Errorf("error initializing provider: %w", err)
 	}
 	defer client.Close()
 
-	return client.CreateBucket(ctx, bucketName, location)
+	err = client.CreateBucket(ctx, bucketName, location)
+	if err != nil {
+		s.logger.Error("Failed to create bucket", "bucket", bucketName, "provider", providerName, "error", err)
+		return err
+	}
+	return nil
 }
 
 func (s *StorageService) DeleteBucket(ctx context.Context, bucketName, providerName string) error {
+	s.logger.Debug("Starting DeleteBucket operation", "bucket", bucketName, "provider", providerName)
+
 	client, err := s.providerFactory.GetStorageProvider(ctx, providerName)
 	if err != nil {
+		s.logger.Error("Failed to initialize provider", "provider", providerName, "error", err)
 		return fmt.Errorf("error initializing provider: %w", err)
 	}
 	defer client.Close()
 
-	return client.DeleteBucket(ctx, bucketName)
+	err = client.DeleteBucket(ctx, bucketName)
+	if err != nil {
+		s.logger.Error("Failed to delete bucket", "bucket", bucketName, "provider", providerName, "error", err)
+		return err
+	}
+	return nil
 }

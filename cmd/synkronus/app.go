@@ -33,7 +33,7 @@ func newApp(logger *slog.Logger) (*appContainer, error) {
 	}
 
 	providerFactory := provider.NewFactory(cfg, logger)
-	storageService := service.NewStorageService(providerFactory)
+	storageService := service.NewStorageService(providerFactory, logger)
 	storageFormatter := formatter.NewStorageFormatter()
 
 	return &appContainer{
