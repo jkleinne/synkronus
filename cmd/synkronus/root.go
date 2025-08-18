@@ -2,7 +2,6 @@
 package main
 
 import (
-	"fmt"
 	"os"
 
 	"github.com/spf13/cobra"
@@ -20,7 +19,7 @@ manage your infrastructure from one place.`,
 	}
 
 	cmd.AddCommand(newStorageCmd(app))
-	cmd.AddCommand(newConfigCmd())
+	cmd.AddCommand(newConfigCmd(app))
 	cmd.AddCommand(newSqlCmd())
 
 	return cmd
@@ -29,7 +28,6 @@ manage your infrastructure from one place.`,
 func Execute(app *appContainer) {
 	rootCmd := newRootCmd(app)
 	if err := rootCmd.Execute(); err != nil {
-		fmt.Println(err)
 		os.Exit(1)
 	}
 }

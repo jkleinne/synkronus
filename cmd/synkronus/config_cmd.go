@@ -6,10 +6,9 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
-	"synkronus/internal/config"
 )
 
-func newConfigCmd() *cobra.Command {
+func newConfigCmd(app *appContainer) *cobra.Command {
 	configCmd := &cobra.Command{
 		Use:   "config",
 		Short: "Manage configuration settings",
@@ -25,7 +24,7 @@ func newConfigCmd() *cobra.Command {
 			key := strings.ToLower(args[0])
 			value := args[1]
 
-			if err := config.SetValue(key, value); err != nil {
+			if err := app.ConfigManager.SetValue(key, value); err != nil {
 				return fmt.Errorf("error setting configuration: %v", err)
 			}
 			fmt.Printf("Configuration set: %s = %s\n", key, value)
@@ -40,11 +39,7 @@ func newConfigCmd() *cobra.Command {
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			key := strings.ToLower(args[0])
-			value, exists, err := config.GetValue(key)
-
-			if err != nil {
-				return fmt.Errorf("error getting configuration: %v", err)
-			}
+			value, exists := app.ConfigManager.GetValue(key)
 
 			if !exists || value == "" {
 				return fmt.Errorf("configuration key '%s' not found or not set", key)
@@ -61,7 +56,7 @@ func newConfigCmd() *cobra.Command {
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			key := strings.ToLower(args[0])
-			deleted, err := config.DeleteValue(key)
+			deleted, err := app.ConfigManager.DeleteValue(key)
 
 			if err != nil {
 				return fmt.Errorf("error deleting configuration: %v", err)
@@ -80,21 +75,23 @@ func newConfigCmd() *cobra.Command {
 		Short: "List all current configuration values",
 		Long:  `Displays all the key-value pairs currently stored in the configuration.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			cfg, err := config.LoadConfig()
-			if err != nil {
-				return fmt.Errorf("error listing configuration: %v", err)
-			}
-
-			hasValues := false
 			var output strings.Builder
+			hasValues := false
 
-			if cfg.GCP != nil && cfg.GCP.Project != "" {
-				output.WriteString(fmt.Sprintf("  gcp.project = %s\n", cfg.GCP.Project))
-				hasValues = true
+			settings := app.ConfigManager.GetAllSettings()
+
+			if gcpSettings, ok := settings["gcp"].(map[string]interface{}); ok {
+				if project, ok := gcpSettings["project"].(string); ok && project != "" {
+					output.WriteString(fmt.Sprintf("  gcp.project = %s\n", project))
+					hasValues = true
+				}
 			}
-			if cfg.AWS != nil && cfg.AWS.Region != "" {
-				output.WriteString(fmt.Sprintf("  aws.region = %s\n", cfg.AWS.Region))
-				hasValues = true
+
+			if awsSettings, ok := settings["aws"].(map[string]interface{}); ok {
+				if region, ok := awsSettings["region"].(string); ok && region != "" {
+					output.WriteString(fmt.Sprintf("  aws.region = %s\n", region))
+					hasValues = true
+				}
 			}
 
 			if !hasValues {
