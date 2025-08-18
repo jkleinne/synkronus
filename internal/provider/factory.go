@@ -34,29 +34,3 @@ func (f *Factory) GetStorageProvider(ctx context.Context, providerName string) (
 		return nil, fmt.Errorf("unsupported provider: %s", providerName)
 	}
 }
-
-func (f *Factory) GetStorageProviders(useGCP, useAWS bool) []string {
-	var providersToQuery []string
-
-	onlyGCP := useGCP && !useAWS
-	onlyAWS := useAWS && !useGCP
-	noFlags := !useGCP && !useAWS
-
-	if onlyGCP {
-		providersToQuery = append(providersToQuery, "gcp")
-	} else if onlyAWS {
-		providersToQuery = append(providersToQuery, "aws")
-	} else {
-		gcpConfigured := f.cfg.GCP != nil && f.cfg.GCP.Project != ""
-		awsConfigured := f.cfg.AWS != nil && f.cfg.AWS.Region != ""
-
-		if (gcpConfigured && noFlags) || useGCP {
-			providersToQuery = append(providersToQuery, "gcp")
-		}
-		if (awsConfigured && noFlags) || useAWS {
-			providersToQuery = append(providersToQuery, "aws")
-		}
-	}
-
-	return providersToQuery
-}

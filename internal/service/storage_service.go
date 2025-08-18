@@ -21,10 +21,8 @@ func NewStorageService(providerFactory *provider.Factory) *StorageService {
 	}
 }
 
-func (s *StorageService) ListAllBuckets(ctx context.Context, useGCP, useAWS bool) ([]storage.Bucket, error) {
-	providersToQuery := s.providerFactory.GetStorageProviders(useGCP, useAWS)
-
-	if len(providersToQuery) == 0 {
+func (s *StorageService) ListAllBuckets(ctx context.Context, providerNames []string) ([]storage.Bucket, error) {
+	if len(providerNames) == 0 {
 		return nil, nil
 	}
 
@@ -32,7 +30,7 @@ func (s *StorageService) ListAllBuckets(ctx context.Context, useGCP, useAWS bool
 	var mu sync.Mutex
 	g, gCtx := errgroup.WithContext(ctx)
 
-	for _, pName := range providersToQuery {
+	for _, pName := range providerNames {
 		pName := pName // Capture pName for the goroutine
 		g.Go(func() error {
 			client, err := s.providerFactory.GetStorageProvider(gCtx, pName)
