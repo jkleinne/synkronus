@@ -1,3 +1,4 @@
+// File: cmd/synkronus/storage_cmd.go
 package main
 
 import (
@@ -48,44 +49,27 @@ func init() {
 	storageCmd.PersistentFlags().BoolVar(&awsProvider, "aws", false, "Use AWS provider")
 }
 
-func initializeProvider(ctx context.Context, providerFlag string, configMap map[string]string) (storage.Storage, error) {
+func initializeProvider(ctx context.Context, providerFlag string, cfg *config.Config) (storage.Storage, error) {
 	switch providerFlag {
 	case "gcp":
-		gcpProject, hasProject := configMap["gcp_project"]
-		if !hasProject || gcpProject == "" {
-			return nil, fmt.Errorf("GCP project not configured. Use 'synkronus config set gcp_project <project-id>'")
+		if cfg.GCP == nil || cfg.GCP.Project == "" {
+			return nil, fmt.Errorf("GCP project not configured. Use 'synkronus config set gcp.project <project-id>'")
 		}
-		return gcp.NewGCPStorage(ctx, gcpProject)
+		return gcp.NewGCPStorage(ctx, cfg.GCP.Project)
 	case "aws":
-		awsRegion, hasRegion := configMap["aws_region"]
-		if !hasRegion || awsRegion == "" {
-			return nil, fmt.Errorf("AWS region not configured. Use 'synkronus config set aws_region <region>'")
+		if cfg.AWS == nil || cfg.AWS.Region == "" {
+			return nil, fmt.Errorf("AWS region not configured. Use 'synkronus config set aws.region <region>'")
 		}
-		return aws.NewAWSStorage(awsRegion), nil
+		return aws.NewAWSStorage(cfg.AWS.Region), nil
 	default:
 		return nil, fmt.Errorf("unsupported provider: %s", providerFlag)
 	}
 }
 
-func getConfigAsMap() (map[string]string, error) {
+func runStorageList(cmd *cobra.Command, args []string) error {
 	cfg, err := config.LoadConfig()
 	if err != nil {
-		return nil, fmt.Errorf("error loading configuration: %w", err)
-	}
-
-	configMap := make(map[string]string)
-	for key, value := range cfg {
-		if strValue, ok := value.(string); ok {
-			configMap[key] = strValue
-		}
-	}
-	return configMap, nil
-}
-
-func runStorageList(cmd *cobra.Command, args []string) error {
-	configMap, err := getConfigAsMap()
-	if err != nil {
-		return err
+		return fmt.Errorf("error loading configuration: %w", err)
 	}
 
 	storageFormatter := formatter.NewStorageFormatter()
@@ -101,16 +85,19 @@ func runStorageList(cmd *cobra.Command, args []string) error {
 	} else if onlyAWS {
 		providersToQuery = append(providersToQuery, "aws")
 	} else { // both flags or no flags
-		if val, ok := configMap["gcp_project"]; (ok && val != "" && noFlags) || gcpProvider {
+		gcpConfigured := cfg.GCP != nil && cfg.GCP.Project != ""
+		awsConfigured := cfg.AWS != nil && cfg.AWS.Region != ""
+
+		if (gcpConfigured && noFlags) || gcpProvider {
 			providersToQuery = append(providersToQuery, "gcp")
 		}
-		if val, ok := configMap["aws_region"]; (ok && val != "" && noFlags) || awsProvider {
+		if (awsConfigured && noFlags) || awsProvider {
 			providersToQuery = append(providersToQuery, "aws")
 		}
 	}
 
 	if len(providersToQuery) == 0 {
-		fmt.Println("No providers configured or specified. Configure GCP/AWS using 'synkronus config set'.")
+		fmt.Println("No providers configured or specified. Configure providers using 'synkronus config set'.")
 		return nil
 	}
 
@@ -122,7 +109,7 @@ func runStorageList(cmd *cobra.Command, args []string) error {
 		// Capture pName for the goroutine
 		pName := pName
 		g.Go(func() error {
-			client, err := initializeProvider(ctx, pName, configMap)
+			client, err := initializeProvider(ctx, pName, cfg)
 			if err != nil {
 				return fmt.Errorf("initializing client for %s: %w", pName, err)
 			}
@@ -168,15 +155,15 @@ func runStorageDescribe(cmd *cobra.Command, args []string) error {
 		providerFlag = "aws"
 	}
 
-	configMap, err := getConfigAsMap()
+	cfg, err := config.LoadConfig()
 	if err != nil {
-		return err
+		return fmt.Errorf("error loading configuration: %w", err)
 	}
 
 	storageFormatter := formatter.NewStorageFormatter()
 	ctx := cmd.Context()
 
-	client, err := initializeProvider(ctx, providerFlag, configMap)
+	client, err := initializeProvider(ctx, providerFlag, cfg)
 	if err != nil {
 		return fmt.Errorf("error initializing provider: %w", err)
 	}
