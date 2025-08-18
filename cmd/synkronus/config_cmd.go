@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 	"synkronus/internal/config"
 )
 
@@ -80,20 +81,15 @@ func newConfigCmd() *cobra.Command {
 		Short: "List all current configuration values",
 		Long:  `Displays all the key-value pairs currently stored in the configuration.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			cfg, err := config.LoadConfig()
-			if err != nil {
-				return fmt.Errorf("error listing configuration: %v", err)
-			}
-
-			hasValues := false
 			var output strings.Builder
+			hasValues := false
 
-			if cfg.GCP != nil && cfg.GCP.Project != "" {
-				output.WriteString(fmt.Sprintf("  gcp.project = %s\n", cfg.GCP.Project))
+			if val := viper.GetString("gcp.project"); val != "" {
+				output.WriteString(fmt.Sprintf("  gcp.project = %s\n", val))
 				hasValues = true
 			}
-			if cfg.AWS != nil && cfg.AWS.Region != "" {
-				output.WriteString(fmt.Sprintf("  aws.region = %s\n", cfg.AWS.Region))
+			if val := viper.GetString("aws.region"); val != "" {
+				output.WriteString(fmt.Sprintf("  aws.region = %s\n", val))
 				hasValues = true
 			}
 

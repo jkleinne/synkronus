@@ -7,6 +7,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/spf13/viper"
 )
 
 const (
@@ -27,194 +29,128 @@ type Config struct {
 	AWS *AWSConfig `json:"aws,omitempty"`
 }
 
-func getConfigPath() (string, error) {
+// ConfigManager encapsulates all configuration logic, managing its own viper instance
+type ConfigManager struct {
+	v *viper.Viper
+}
+
+// Creates and initializes a new ConfigManager
+// It sets up a new viper instance, defines config paths, and reads the configuration from the file
+func NewConfigManager() (*ConfigManager, error) {
+	v := viper.New()
+
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
-		return "", fmt.Errorf("error getting user home directory: %w", err)
+		// This is unlikely to fail, but if it does, Viper will only look in the current directory
 	}
 
 	configDir := filepath.Join(homeDir, ".config", ConfigDirName)
-	configPath := filepath.Join(configDir, ConfigFileName)
 
-	if _, err := os.Stat(configPath); err == nil {
-		return configPath, nil
-	}
+	v.SetConfigName("config")
+	v.SetConfigType("json")
+	v.AddConfigPath(configDir)
+	v.AddConfigPath(".")
 
-	if _, err := os.Stat(ConfigFileName); err == nil {
-		if err := migrateConfig(ConfigFileName, configPath); err == nil {
-			return configPath, nil
+	if err := v.ReadInConfig(); err != nil {
+		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
+			// A real error occurred (e.g., malformed JSON)
+			return nil, fmt.Errorf("error reading config file: %w", err)
 		}
-		return ConfigFileName, nil
 	}
 
-	if err := os.MkdirAll(configDir, 0755); err != nil {
-		return "", fmt.Errorf("error creating config directory: %w", err)
-	}
-
-	return configPath, nil
+	return &ConfigManager{v: v}, nil
 }
 
-func migrateConfig(sourcePath, destPath string) error {
-	destDir := filepath.Dir(destPath)
-	if err := os.MkdirAll(destDir, 0755); err != nil {
-		return fmt.Errorf("error creating config directory: %w", err)
-	}
-
-	data, err := os.ReadFile(sourcePath)
-	if err != nil {
-		return fmt.Errorf("error reading source config file: %w", err)
-	}
-
-	if err := os.WriteFile(destPath, data, 0644); err != nil {
-		return fmt.Errorf("error writing destination config file: %w", err)
-	}
-
-	return nil
-}
-
-func LoadConfig() (*Config, error) {
-	configPath, err := getConfigPath()
-	if err != nil {
-		return nil, err
-	}
-
-	if _, err := os.Stat(configPath); os.IsNotExist(err) {
-		return &Config{}, nil
-	}
-
-	data, err := os.ReadFile(configPath)
-	if err != nil {
-		return nil, fmt.Errorf("error reading config file: %w", err)
-	}
-
-	if len(data) == 0 {
-		return &Config{}, nil
-	}
-
+func (cm *ConfigManager) LoadConfig() (*Config, error) {
 	var config Config
-	if err := json.Unmarshal(data, &config); err != nil {
+	if err := cm.v.Unmarshal(&config); err != nil {
 		return nil, fmt.Errorf("error parsing config file: %w", err)
 	}
-
 	return &config, nil
 }
 
-func SaveConfig(config *Config) error {
-	configPath, err := getConfigPath()
+func (cm *ConfigManager) SaveConfig() error {
+	configPath, err := cm.getPreferredConfigPath()
 	if err != nil {
 		return err
 	}
 
-	data, err := json.MarshalIndent(config, "", "  ")
+	configDir := filepath.Dir(configPath)
+	if err := os.MkdirAll(configDir, 0755); err != nil {
+		return fmt.Errorf("error creating config directory: %w", err)
+	}
+
+	settings := cm.v.AllSettings()
+	data, err := json.MarshalIndent(settings, "", "  ")
 	if err != nil {
 		return fmt.Errorf("error encoding config: %w", err)
 	}
 
-	if err := os.WriteFile(configPath, data, 0644); err != nil {
+	if err := os.WriteFile(configPath, data, 0600); err != nil {
 		return fmt.Errorf("error writing config file: %w", err)
 	}
 
 	return nil
 }
 
-func SetValue(key, value string) error {
-	config, err := LoadConfig()
-	if err != nil {
-		return err
-	}
-
+func (cm *ConfigManager) SetValue(key, value string) error {
 	parts := strings.SplitN(key, ".", 2)
 	if len(parts) != 2 {
 		return fmt.Errorf("invalid config key format: %s. Use format like 'provider.key' (e.g., 'gcp.project')", key)
 	}
+
 	provider := parts[0]
 	field := parts[1]
 
+	// Validate the key to prevent arbitrary keys from being set
 	switch provider {
 	case "gcp":
-		if config.GCP == nil {
-			config.GCP = &GCPConfig{}
-		}
-		if field == "project" {
-			config.GCP.Project = value
-		} else {
+		if field != "project" {
 			return fmt.Errorf("unknown config key for gcp: %s", field)
 		}
 	case "aws":
-		if config.AWS == nil {
-			config.AWS = &AWSConfig{}
-		}
-		if field == "region" {
-			config.AWS.Region = value
-		} else {
+		if field != "region" {
 			return fmt.Errorf("unknown config key for aws: %s", field)
 		}
 	default:
 		return fmt.Errorf("unknown provider in config key: %s", provider)
 	}
 
-	return SaveConfig(config)
+	cm.v.Set(key, value)
+	return cm.SaveConfig()
 }
 
-func GetValue(key string) (string, bool, error) {
-	config, err := LoadConfig()
-	if err != nil {
-		return "", false, err
+func (cm *ConfigManager) GetValue(key string) (string, bool) {
+	if !cm.v.IsSet(key) {
+		return "", false
 	}
-
-	parts := strings.SplitN(key, ".", 2)
-	if len(parts) != 2 {
-		return "", false, fmt.Errorf("invalid config key format: %s", key)
-	}
-	provider := parts[0]
-	field := parts[1]
-
-	switch provider {
-	case "gcp":
-		if config.GCP != nil && field == "project" {
-			return config.GCP.Project, true, nil
-		}
-	case "aws":
-		if config.AWS != nil && field == "region" {
-			return config.AWS.Region, true, nil
-		}
-	}
-
-	return "", false, nil
+	value := cm.v.GetString(key)
+	return value, value != ""
 }
 
-func DeleteValue(key string) (bool, error) {
-	config, err := LoadConfig()
-	if err != nil {
-		return false, err
-	}
-
-	val, exists, err := GetValue(key)
-	if err != nil {
-		return false, err
-	}
+func (cm *ConfigManager) DeleteValue(key string) (bool, error) {
+	val, exists := cm.GetValue(key)
 	if !exists || val == "" {
 		return false, nil
 	}
 
-	parts := strings.SplitN(key, ".", 2)
-	provider := parts[0]
-	field := parts[1]
-
-	switch provider {
-	case "gcp":
-		if config.GCP != nil && field == "project" {
-			config.GCP.Project = ""
-		}
-	case "aws":
-		if config.AWS != nil && field == "region" {
-			config.AWS.Region = ""
-		}
-	}
-
-	if err := SaveConfig(config); err != nil {
+	cm.v.Set(key, "")
+	if err := cm.SaveConfig(); err != nil {
 		return false, err
 	}
-
 	return true, nil
+}
+
+func (cm *ConfigManager) GetAllSettings() map[string]interface{} {
+	return cm.v.AllSettings()
+}
+
+func (cm *ConfigManager) getPreferredConfigPath() (string, error) {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("error getting user home directory: %w", err)
+	}
+
+	configDir := filepath.Join(homeDir, ".config", ConfigDirName)
+	return filepath.Join(configDir, ConfigFileName), nil
 }
