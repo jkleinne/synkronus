@@ -16,6 +16,10 @@ import (
 const (
 	ConfigFileName = "config.json"
 	ConfigDirName  = "synkronus"
+	// Ensures the directory is only accessible by the owner (rwx------)
+	ConfigDirPermissions os.FileMode = 0700
+	// Ensures the file is only accessible by the owner (rw-------)
+	ConfigFilePermissions os.FileMode = 0600
 )
 
 type GCPConfig struct {
@@ -41,6 +45,7 @@ func NewConfigManager() (*ConfigManager, error) {
 
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
+		return nil, fmt.Errorf("error determining user home directory: %w", err)
 	}
 
 	configDir := filepath.Join(homeDir, ".config", ConfigDirName)
@@ -51,6 +56,7 @@ func NewConfigManager() (*ConfigManager, error) {
 	v.AddConfigPath(".")
 
 	if err := v.ReadInConfig(); err != nil {
+		// It's okay if the config file doesn't exist (first run), but other errors (e.g., parsing, permissions) must be reported
 		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
 			return nil, fmt.Errorf("error reading config file: %w", err)
 		}
@@ -77,12 +83,19 @@ func (cm *ConfigManager) SaveConfig() error {
 	}
 
 	configDir := filepath.Dir(configPath)
-	if err := os.MkdirAll(configDir, 0755); err != nil {
+	// Ensure the directory exists with secure permissions (0700)
+	if err := os.MkdirAll(configDir, ConfigDirPermissions); err != nil {
 		return fmt.Errorf("error creating config directory: %w", err)
 	}
 
+	// Write the configuration file
 	if err := cm.v.WriteConfigAs(configPath); err != nil {
 		return fmt.Errorf("error writing config file: %w", err)
+	}
+
+	// Explicitly set secure permissions (0600) on the file itself (Defense-in-Depth)
+	if err := os.Chmod(configPath, ConfigFilePermissions); err != nil {
+		return fmt.Errorf("error setting secure permissions on config file: %w", err)
 	}
 
 	return nil
