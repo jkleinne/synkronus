@@ -3,6 +3,7 @@ package gcp
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"synkronus/pkg/common"
@@ -13,6 +14,7 @@ import (
 	monitoring "cloud.google.com/go/monitoring/apiv3/v2"
 	monitoringpb "cloud.google.com/go/monitoring/apiv3/v2/monitoringpb"
 	gcpstorage "cloud.google.com/go/storage"
+	"google.golang.org/api/googleapi"
 	"google.golang.org/api/iterator"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -138,13 +140,47 @@ func (g *GCPStorage) getAllBucketUsages(ctx context.Context) (map[string]int64, 
 	return usageMap, nil
 }
 
+func (g *GCPStorage) getSingleBucketUsage(ctx context.Context, bucketName string) (int64, error) {
+	g.logger.Debug("Fetching single GCP bucket usage metric via Monitoring API", "bucket", bucketName)
+	client, err := monitoring.NewMetricClient(ctx)
+	if err != nil {
+		return -1, fmt.Errorf("failed to create monitoring client: %w", err)
+	}
+	defer client.Close()
+
+	endTime := time.Now()
+	startTime := endTime.Add(-15 * time.Minute)
+
+	req := &monitoringpb.ListTimeSeriesRequest{
+		Name: fmt.Sprintf("projects/%s", g.projectID),
+		// Request metrics for a single bucket
+		Filter: fmt.Sprintf(`metric.type="storage.googleapis.com/storage/total_bytes" AND resource.labels.bucket_name="%s"`, bucketName),
+		Interval: &monitoringpb.TimeInterval{
+			StartTime: timestamppb.New(startTime),
+			EndTime:   timestamppb.New(endTime),
+		},
+		View: monitoringpb.ListTimeSeriesRequest_FULL,
+	}
+
+	it := client.ListTimeSeries(ctx, req)
+	resp, err := it.Next()
+
+	if err == iterator.Done {
+		return -1, fmt.Errorf("no usage metrics found for bucket %s", bucketName)
+	}
+	if err != nil {
+		return -1, fmt.Errorf("error getting metric data for bucket %s: %w", bucketName, err)
+	}
+
+	if len(resp.GetPoints()) > 0 {
+		return resp.GetPoints()[0].GetValue().GetInt64Value(), nil
+	}
+
+	return -1, fmt.Errorf("metric response for bucket %s contained no data points", bucketName)
+}
+
 func (g *GCPStorage) DescribeBucket(ctx context.Context, bucketName string) (storage.Bucket, error) {
 	g.logger.Debug("Starting GCP DescribeBucket operation", "bucket", bucketName)
-
-	usageMap, err := g.getAllBucketUsages(ctx)
-	if err != nil {
-		return storage.Bucket{}, fmt.Errorf("failed to retrieve usage metrics for bucket %s: %w", bucketName, err)
-	}
 
 	bucketHandle := g.client.Bucket(bucketName)
 	attrs, err := bucketHandle.Attrs(ctx)
@@ -152,23 +188,119 @@ func (g *GCPStorage) DescribeBucket(ctx context.Context, bucketName string) (sto
 		return storage.Bucket{}, fmt.Errorf("error getting bucket attributes: %w", err)
 	}
 
-	usage := int64(-1)
-	if u, ok := usageMap[bucketName]; ok {
-		usage = u
+	// Fetch usage metrics for only this bucket
+	usage, err := g.getSingleBucketUsage(ctx, bucketName)
+	if err != nil {
+		g.logger.Warn("Failed to retrieve usage metrics, usage will be reported as N/A", "bucket", bucketName, "error", err)
+		usage = -1 // Set usage to unknown on failure
+	}
+
+	// Fetch ACLs (separate API call)
+	aclRules, err := g.getACLs(ctx, bucketHandle)
+	if err != nil {
+		// Log a warning but don't fail the entire operation, as ACLs might not be readable.
+		g.logger.Warn("Could not retrieve ACLs for bucket", "bucket", bucketName, "error", err)
 	}
 
 	details := storage.Bucket{
-		Name:         attrs.Name,
-		Provider:     common.GCP,
-		Location:     attrs.Location,
-		StorageClass: attrs.StorageClass,
-		CreatedAt:    attrs.Created,
-		UpdatedAt:    attrs.Updated,
-		UsageBytes:   usage,
-		Labels:       attrs.Labels,
+		Name:                     attrs.Name,
+		Provider:                 common.GCP,
+		Location:                 attrs.Location,
+		StorageClass:             attrs.StorageClass,
+		CreatedAt:                attrs.Created,
+		UpdatedAt:                attrs.Updated,
+		UsageBytes:               usage,
+		Labels:                   attrs.Labels,
+		ACLs:                     aclRules,
+		LifecycleRules:           mapLifecycleRules(attrs.Lifecycle.Rules),
+		Logging:                  mapLogging(attrs.Logging),
+		Versioning:               &storage.Versioning{Enabled: attrs.VersioningEnabled},
+		SoftDeletePolicy:         mapSoftDeletePolicy(attrs.SoftDeletePolicy),
+		UniformBucketLevelAccess: &storage.UniformBucketLevelAccess{Enabled: attrs.UniformBucketLevelAccess.Enabled},
+		PublicAccessPrevention:   mapPublicAccessPrevention(attrs.PublicAccessPrevention),
 	}
 
 	return details, nil
+}
+
+// getACLs fetches the bucket's ACLs.
+func (g *GCPStorage) getACLs(ctx context.Context, bucketHandle *gcpstorage.BucketHandle) ([]storage.ACLRule, error) {
+	gcpAcls, err := bucketHandle.ACL().List(ctx)
+	if err != nil {
+		var gcsErr *googleapi.Error
+		// If Uniform Bucket-Level Access is enabled, this call fails with a 400.
+		// We can check for this specific error and return an empty list.
+		if errors.As(err, &gcsErr) && gcsErr.Code == 400 {
+			return []storage.ACLRule{}, nil
+		}
+		return nil, fmt.Errorf("failed to list ACLs: %w", err)
+	}
+
+	var acls []storage.ACLRule
+	for _, acl := range gcpAcls {
+		acls = append(acls, storage.ACLRule{
+			Entity: string(acl.Entity),
+			Role:   string(acl.Role),
+		})
+	}
+	return acls, nil
+}
+
+func mapLifecycleRules(rules []gcpstorage.LifecycleRule) []storage.LifecycleRule {
+	if len(rules) == 0 {
+		return nil
+	}
+	var result []storage.LifecycleRule
+	for _, r := range rules {
+		var actionStr string
+		// Refine action string for better readability
+		if r.Action.StorageClass != "" {
+			actionStr = fmt.Sprintf("%s to %s", r.Action.Type, r.Action.StorageClass)
+		} else {
+			actionStr = r.Action.Type
+		}
+
+		result = append(result, storage.LifecycleRule{
+			Action: actionStr,
+			Condition: storage.LifecycleCondition{
+				Age:                 int(r.Condition.AgeInDays),
+				CreatedBefore:       r.Condition.CreatedBefore,
+				MatchesStorageClass: r.Condition.MatchesStorageClasses,
+				NumNewerVersions:    int(r.Condition.NumNewerVersions),
+			},
+		})
+	}
+	return result
+}
+
+func mapLogging(l *gcpstorage.BucketLogging) *storage.Logging {
+	if l == nil {
+		return nil
+	}
+	return &storage.Logging{
+		LogBucket:       l.LogBucket,
+		LogObjectPrefix: l.LogObjectPrefix,
+	}
+}
+
+func mapSoftDeletePolicy(sdp *gcpstorage.SoftDeletePolicy) *storage.SoftDeletePolicy {
+	if sdp == nil {
+		return nil
+	}
+	return &storage.SoftDeletePolicy{
+		RetentionDuration: sdp.RetentionDuration,
+	}
+}
+
+func mapPublicAccessPrevention(pap gcpstorage.PublicAccessPrevention) string {
+	switch pap {
+	case gcpstorage.PublicAccessPreventionEnforced:
+		return "Enforced"
+	case gcpstorage.PublicAccessPreventionInherited:
+		return "Inherited"
+	default:
+		return "Unknown"
+	}
 }
 
 func (g *GCPStorage) CreateBucket(ctx context.Context, bucketName string, location string) error {

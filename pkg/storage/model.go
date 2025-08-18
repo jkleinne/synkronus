@@ -17,6 +17,48 @@ type Bucket struct {
 	// A value of -1 indicates that the usage is unknown or could not be retrieved
 	UsageBytes int64
 	Labels     map[string]string
+
+	ACLs                     []ACLRule
+	LifecycleRules           []LifecycleRule
+	Logging                  *Logging
+	Versioning               *Versioning
+	SoftDeletePolicy         *SoftDeletePolicy
+	UniformBucketLevelAccess *UniformBucketLevelAccess
+	PublicAccessPrevention   string
+}
+
+type Versioning struct {
+	Enabled bool
+}
+
+type Logging struct {
+	LogBucket       string
+	LogObjectPrefix string
+}
+
+type SoftDeletePolicy struct {
+	RetentionDuration time.Duration
+}
+
+type UniformBucketLevelAccess struct {
+	Enabled bool
+}
+
+type ACLRule struct {
+	Entity string // e.g., "user-email@example.com", "allUsers"
+	Role   string
+}
+
+type LifecycleRule struct {
+	Action    string
+	Condition LifecycleCondition
+}
+
+type LifecycleCondition struct {
+	Age                 int
+	CreatedBefore       time.Time
+	MatchesStorageClass []string
+	NumNewerVersions    int
 }
 
 func FormatBytes(bytes int64) string {
