@@ -4,6 +4,7 @@ package aws
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"synkronus/pkg/common"
 	"synkronus/pkg/storage"
 	"time"
@@ -11,13 +12,15 @@ import (
 
 type AWSStorage struct {
 	region string
+	logger *slog.Logger
 }
 
 var _ storage.Storage = (*AWSStorage)(nil)
 
-func NewAWSStorage(region string) *AWSStorage {
+func NewAWSStorage(region string, logger *slog.Logger) *AWSStorage {
 	return &AWSStorage{
 		region: region,
+		logger: logger,
 	}
 }
 
@@ -26,6 +29,7 @@ func (s *AWSStorage) ProviderName() common.Provider {
 }
 
 func (s *AWSStorage) ListBuckets(ctx context.Context) ([]storage.Bucket, error) {
+	s.logger.Debug("Listing AWS buckets (placeholder)")
 	// TODO: Implement actual AWS S3 ListBuckets API call and CloudWatch metrics retrieval
 	// Placeholder implementation updated with structured data
 	return []storage.Bucket{
@@ -49,6 +53,8 @@ func (s *AWSStorage) ListBuckets(ctx context.Context) ([]storage.Bucket, error) 
 }
 
 func (s *AWSStorage) DescribeBucket(ctx context.Context, bucketName string) (storage.Bucket, error) {
+	s.logger.Debug("Describing AWS bucket (placeholder)", "bucket", bucketName)
+
 	fmt.Printf("Fetching details for AWS S3 bucket: %s in region %s\n", bucketName, s.region)
 
 	return storage.Bucket{
