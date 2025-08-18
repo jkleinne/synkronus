@@ -2,17 +2,13 @@
 package main
 
 import (
-	"context"
 	"fmt"
-	"sync"
 
 	"github.com/spf13/cobra"
-	"golang.org/x/sync/errgroup"
 	"synkronus/internal/config"
+	"synkronus/internal/provider"
+	"synkronus/internal/service"
 	"synkronus/pkg/formatter"
-	"synkronus/pkg/storage"
-	"synkronus/pkg/storage/aws"
-	"synkronus/pkg/storage/gcp"
 )
 
 var (
@@ -71,93 +67,25 @@ func init() {
 	storageCreateCmd.MarkFlagRequired("location")
 }
 
-func initializeProvider(ctx context.Context, providerFlag string, cfg *config.Config) (storage.Storage, error) {
-	switch providerFlag {
-	case "gcp":
-		if cfg.GCP == nil || cfg.GCP.Project == "" {
-			return nil, fmt.Errorf("GCP project not configured. Use 'synkronus config set gcp.project <project-id>'")
-		}
-		return gcp.NewGCPStorage(ctx, cfg.GCP.Project)
-	case "aws":
-		if cfg.AWS == nil || cfg.AWS.Region == "" {
-			return nil, fmt.Errorf("AWS region not configured. Use 'synkronus config set aws.region <region>'")
-		}
-		return aws.NewAWSStorage(cfg.AWS.Region), nil
-	default:
-		return nil, fmt.Errorf("unsupported provider: %s", providerFlag)
-	}
-}
-
 func runStorageList(cmd *cobra.Command, args []string) error {
 	cfg, err := config.LoadConfig()
 	if err != nil {
 		return fmt.Errorf("error loading configuration: %w", err)
 	}
 
+	providerFactory := provider.NewFactory(cfg)
+	storageService := service.NewStorageService(providerFactory)
 	storageFormatter := formatter.NewStorageFormatter()
-	var providersToQuery []string
 
-	// Determine which providers to query based on flags or configuration
-	onlyGCP := gcpProvider && !awsProvider
-	onlyAWS := awsProvider && !gcpProvider
-	noFlags := !gcpProvider && !awsProvider
-
-	if onlyGCP {
-		providersToQuery = append(providersToQuery, "gcp")
-	} else if onlyAWS {
-		providersToQuery = append(providersToQuery, "aws")
-	} else { // both flags or no flags
-		gcpConfigured := cfg.GCP != nil && cfg.GCP.Project != ""
-		awsConfigured := cfg.AWS != nil && cfg.AWS.Region != ""
-
-		if (gcpConfigured && noFlags) || gcpProvider {
-			providersToQuery = append(providersToQuery, "gcp")
-		}
-		if (awsConfigured && noFlags) || awsProvider {
-			providersToQuery = append(providersToQuery, "aws")
-		}
-	}
-
-	if len(providersToQuery) == 0 {
-		fmt.Println("No providers configured or specified. Configure providers using 'synkronus config set'.")
-		return nil
-	}
-
-	var allBuckets []storage.Bucket
-	var mu sync.Mutex
-	g, ctx := errgroup.WithContext(cmd.Context())
-
-	for _, pName := range providersToQuery {
-		// Capture pName for the goroutine
-		pName := pName
-		g.Go(func() error {
-			client, err := initializeProvider(ctx, pName, cfg)
-			if err != nil {
-				return fmt.Errorf("initializing client for %s: %w", pName, err)
-			}
-			defer client.Close()
-
-			buckets, err := client.ListBuckets(ctx)
-			if err != nil {
-				return fmt.Errorf("listing buckets from %s: %w", pName, err)
-			}
-
-			mu.Lock()
-			allBuckets = append(allBuckets, buckets...)
-			mu.Unlock()
-
-			return nil
-		})
-	}
-
-	if err := g.Wait(); err != nil {
+	allBuckets, err := storageService.ListAllBuckets(cmd.Context(), gcpProvider, awsProvider)
+	if err != nil {
 		return err
 	}
 
 	if len(allBuckets) > 0 {
 		fmt.Println(storageFormatter.FormatBucketList(allBuckets))
 	} else {
-		fmt.Println("No buckets found.")
+		fmt.Println("No providers configured or specified, or no buckets found. Configure providers using 'synkronus config set'.")
 	}
 
 	return nil
@@ -170,11 +98,11 @@ func runStorageDescribe(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("you must specify exactly one provider flag (--gcp or --aws) for the describe command")
 	}
 
-	var providerFlag string
+	var providerName string
 	if gcpProvider {
-		providerFlag = "gcp"
+		providerName = "gcp"
 	} else {
-		providerFlag = "aws"
+		providerName = "aws"
 	}
 
 	cfg, err := config.LoadConfig()
@@ -182,18 +110,13 @@ func runStorageDescribe(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("error loading configuration: %w", err)
 	}
 
+	providerFactory := provider.NewFactory(cfg)
+	storageService := service.NewStorageService(providerFactory)
 	storageFormatter := formatter.NewStorageFormatter()
-	ctx := cmd.Context()
 
-	client, err := initializeProvider(ctx, providerFlag, cfg)
+	bucketDetails, err := storageService.DescribeBucket(cmd.Context(), bucketName, providerName)
 	if err != nil {
-		return fmt.Errorf("error initializing provider: %w", err)
-	}
-	defer client.Close()
-
-	bucketDetails, err := client.DescribeBucket(ctx, bucketName)
-	if err != nil {
-		return fmt.Errorf("error describing bucket '%s' on %s: %w", bucketName, providerFlag, err)
+		return fmt.Errorf("error describing bucket '%s' on %s: %w", bucketName, providerName, err)
 	}
 
 	fmt.Println(storageFormatter.FormatBucketDetails(bucketDetails))
@@ -207,11 +130,11 @@ func runStorageCreate(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("you must specify exactly one provider flag (--gcp or --aws) for the create command")
 	}
 
-	var providerFlag string
+	var providerName string
 	if gcpProvider {
-		providerFlag = "gcp"
+		providerName = "gcp"
 	} else {
-		providerFlag = "aws"
+		providerName = "aws"
 	}
 
 	cfg, err := config.LoadConfig()
@@ -219,19 +142,15 @@ func runStorageCreate(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("error loading configuration: %w", err)
 	}
 
-	ctx := cmd.Context()
-	client, err := initializeProvider(ctx, providerFlag, cfg)
-	if err != nil {
-		return fmt.Errorf("error initializing provider: %w", err)
-	}
-	defer client.Close()
+	providerFactory := provider.NewFactory(cfg)
+	storageService := service.NewStorageService(providerFactory)
 
-	err = client.CreateBucket(ctx, bucketName, location)
+	err = storageService.CreateBucket(cmd.Context(), bucketName, providerName, location)
 	if err != nil {
-		return fmt.Errorf("error creating bucket '%s' on %s: %w", bucketName, providerFlag, err)
+		return fmt.Errorf("error creating bucket '%s' on %s: %w", bucketName, providerName, err)
 	}
 
-	fmt.Printf("Bucket '%s' created successfully in %s on provider %s.\n", bucketName, location, providerFlag)
+	fmt.Printf("Bucket '%s' created successfully in %s on provider %s.\n", bucketName, location, providerName)
 	return nil
 }
 
@@ -242,11 +161,11 @@ func runStorageDelete(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("you must specify exactly one provider flag (--gcp or --aws) for the delete command")
 	}
 
-	var providerFlag string
+	var providerName string
 	if gcpProvider {
-		providerFlag = "gcp"
+		providerName = "gcp"
 	} else {
-		providerFlag = "aws"
+		providerName = "aws"
 	}
 
 	cfg, err := config.LoadConfig()
@@ -254,18 +173,14 @@ func runStorageDelete(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("error loading configuration: %w", err)
 	}
 
-	ctx := cmd.Context()
-	client, err := initializeProvider(ctx, providerFlag, cfg)
-	if err != nil {
-		return fmt.Errorf("error initializing provider: %w", err)
-	}
-	defer client.Close()
+	providerFactory := provider.NewFactory(cfg)
+	storageService := service.NewStorageService(providerFactory)
 
-	err = client.DeleteBucket(ctx, bucketName)
+	err = storageService.DeleteBucket(cmd.Context(), bucketName, providerName)
 	if err != nil {
-		return fmt.Errorf("error deleting bucket '%s' on %s: %w", bucketName, providerFlag, err)
+		return fmt.Errorf("error deleting bucket '%s' on %s: %w", bucketName, providerName, err)
 	}
 
-	fmt.Printf("Bucket '%s' deleted successfully from provider %s.\n", bucketName, providerFlag)
+	fmt.Printf("Bucket '%s' deleted successfully from provider %s.\n", bucketName, providerName)
 	return nil
 }
