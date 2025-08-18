@@ -214,13 +214,13 @@ func runStorageCreate(cmd *cobra.Command, args []string) error {
 		providerFlag = "aws"
 	}
 
-	configMap, err := getConfigAsMap()
+	cfg, err := config.LoadConfig()
 	if err != nil {
-		return err
+		return fmt.Errorf("error loading configuration: %w", err)
 	}
 
 	ctx := cmd.Context()
-	client, err := initializeProvider(ctx, providerFlag, configMap)
+	client, err := initializeProvider(ctx, providerFlag, cfg)
 	if err != nil {
 		return fmt.Errorf("error initializing provider: %w", err)
 	}
@@ -249,13 +249,13 @@ func runStorageDelete(cmd *cobra.Command, args []string) error {
 		providerFlag = "aws"
 	}
 
-	configMap, err := getConfigAsMap()
+	cfg, err := config.LoadConfig()
 	if err != nil {
-		return err
+		return fmt.Errorf("error loading configuration: %w", err)
 	}
 
 	ctx := cmd.Context()
-	client, err := initializeProvider(ctx, providerFlag, configMap)
+	client, err := initializeProvider(ctx, providerFlag, cfg)
 	if err != nil {
 		return fmt.Errorf("error initializing provider: %w", err)
 	}
