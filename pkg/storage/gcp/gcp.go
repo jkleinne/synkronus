@@ -140,6 +140,45 @@ func (g *GCPStorage) getAllBucketUsages(ctx context.Context) (map[string]int64, 
 	return usageMap, nil
 }
 
+func (g *GCPStorage) getSingleBucketUsage(ctx context.Context, bucketName string) (int64, error) {
+	g.logger.Debug("Fetching single GCP bucket usage metric via Monitoring API", "bucket", bucketName)
+	client, err := monitoring.NewMetricClient(ctx)
+	if err != nil {
+		return -1, fmt.Errorf("failed to create monitoring client: %w", err)
+	}
+	defer client.Close()
+
+	endTime := time.Now()
+	startTime := endTime.Add(-15 * time.Minute)
+
+	req := &monitoringpb.ListTimeSeriesRequest{
+		Name: fmt.Sprintf("projects/%s", g.projectID),
+		// Request metrics for a single bucket
+		Filter: fmt.Sprintf(`metric.type="storage.googleapis.com/storage/total_bytes" AND resource.labels.bucket_name="%s"`, bucketName),
+		Interval: &monitoringpb.TimeInterval{
+			StartTime: timestamppb.New(startTime),
+			EndTime:   timestamppb.New(endTime),
+		},
+		View: monitoringpb.ListTimeSeriesRequest_FULL,
+	}
+
+	it := client.ListTimeSeries(ctx, req)
+	resp, err := it.Next()
+
+	if err == iterator.Done {
+		return -1, fmt.Errorf("no usage metrics found for bucket %s", bucketName)
+	}
+	if err != nil {
+		return -1, fmt.Errorf("error getting metric data for bucket %s: %w", bucketName, err)
+	}
+
+	if len(resp.GetPoints()) > 0 {
+		return resp.GetPoints()[0].GetValue().GetInt64Value(), nil
+	}
+
+	return -1, fmt.Errorf("metric response for bucket %s contained no data points", bucketName)
+}
+
 func (g *GCPStorage) DescribeBucket(ctx context.Context, bucketName string) (storage.Bucket, error) {
 	g.logger.Debug("Starting GCP DescribeBucket operation", "bucket", bucketName)
 
@@ -149,15 +188,11 @@ func (g *GCPStorage) DescribeBucket(ctx context.Context, bucketName string) (sto
 		return storage.Bucket{}, fmt.Errorf("error getting bucket attributes: %w", err)
 	}
 
-	// Fetch usage metrics
-	usageMap, err := g.getAllBucketUsages(ctx)
+	// Fetch usage metrics for only this bucket
+	usage, err := g.getSingleBucketUsage(ctx, bucketName)
 	if err != nil {
 		g.logger.Warn("Failed to retrieve usage metrics, usage will be reported as N/A", "bucket", bucketName, "error", err)
-	}
-
-	usage := int64(-1)
-	if u, ok := usageMap[bucketName]; ok {
-		usage = u
+		usage = -1 // Set usage to unknown on failure
 	}
 
 	// Fetch ACLs (separate API call)
@@ -257,7 +292,6 @@ func mapSoftDeletePolicy(sdp *gcpstorage.SoftDeletePolicy) *storage.SoftDeletePo
 	}
 }
 
-// mapPublicAccessPrevention converts the GCP SDK's integer constant to a string.
 func mapPublicAccessPrevention(pap gcpstorage.PublicAccessPrevention) string {
 	switch pap {
 	case gcpstorage.PublicAccessPreventionEnforced:
