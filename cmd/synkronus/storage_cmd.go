@@ -5,7 +5,8 @@ import (
 	"fmt"
 	"strings"
 	"synkronus/internal/flags"
-	"synkronus/internal/provider"
+	"synkronus/internal/provider/factory"
+	"synkronus/internal/provider/registry"
 
 	"github.com/spf13/cobra"
 )
@@ -45,7 +46,7 @@ Use the --providers flag to specify which providers to query (e.g., --providers 
 				fmt.Println(app.StorageFormatter.FormatBucketList(allBuckets))
 			} else {
 				if len(providersToQuery) == 0 {
-					fmt.Printf("No providers configured. Use 'synkronus config set'. Supported providers: %s\n", strings.Join(provider.GetSupportedProviders(), ", "))
+					fmt.Printf("No providers configured. Use 'synkronus config set'. Supported providers: %s\n", strings.Join(registry.GetSupportedProviders(), ", "))
 				} else {
 					fmt.Println("No buckets found.")
 				}
@@ -123,7 +124,7 @@ Use the --providers flag to specify which providers to query (e.g., --providers 
 	return storageCmd
 }
 
-func resolveProvidersForList(requestedProviders []string, factory *provider.Factory) ([]string, error) {
+func resolveProvidersForList(requestedProviders []string, factory *factory.Factory) ([]string, error) {
 	if len(requestedProviders) == 0 {
 		return factory.GetConfiguredProviders(), nil
 	}
@@ -140,7 +141,7 @@ func resolveProvidersForList(requestedProviders []string, factory *provider.Fact
 		}
 		seen[p] = true
 
-		if provider.IsSupported(p) {
+		if registry.IsSupported(p) {
 			if factory.IsConfigured(p) {
 				validatedProviders = append(validatedProviders, p)
 			} else {
@@ -152,7 +153,7 @@ func resolveProvidersForList(requestedProviders []string, factory *provider.Fact
 	}
 
 	if len(invalidProviders) > 0 {
-		return nil, fmt.Errorf("unsupported providers requested: %v. Supported providers are: %v", invalidProviders, provider.GetSupportedProviders())
+		return nil, fmt.Errorf("unsupported providers requested: %v. Supported providers are: %v", invalidProviders, registry.GetSupportedProviders())
 	}
 
 	return validatedProviders, nil

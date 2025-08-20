@@ -4,6 +4,10 @@ package main
 import (
 	"os"
 	"synkronus/internal/logger"
+
+	// Explicitly import provider implementations to ensure their init() functions run and they register themselves
+	_ "synkronus/pkg/storage/aws"
+	_ "synkronus/pkg/storage/gcp"
 )
 
 func main() {
