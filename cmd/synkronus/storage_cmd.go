@@ -4,6 +4,7 @@ package main
 import (
 	"fmt"
 	"strings"
+	"synkronus/internal/flags"
 	"synkronus/internal/provider"
 
 	"github.com/spf13/cobra"
@@ -16,7 +17,7 @@ type storageFlags struct {
 }
 
 func newStorageCmd(app *appContainer) *cobra.Command {
-	flags := storageFlags{}
+	cmdFlags := storageFlags{}
 
 	storageCmd := &cobra.Command{
 		Use:   "storage",
@@ -24,19 +25,13 @@ func newStorageCmd(app *appContainer) *cobra.Command {
 		Long:  `The storage command allows you to list, describe, create, and delete storage buckets from configured cloud providers.`,
 	}
 
-	const (
-		providerFlag  = "provider"
-		providersFlag = "providers"
-		locationFlag  = "location"
-	)
-
 	listCmd := &cobra.Command{
 		Use:   "list",
 		Short: "List storage buckets",
 		Long: `Lists all storage buckets. If no flags are provided, it queries all configured providers. 
 Use the --providers flag to specify which providers to query (e.g., --providers gcp,aws).`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			providersToQuery, err := resolveProvidersForList(flags.providersList, app.ProviderFactory)
+			providersToQuery, err := resolveProvidersForList(cmdFlags.providersList, app.ProviderFactory)
 			if err != nil {
 				return err
 			}
@@ -58,7 +53,7 @@ Use the --providers flag to specify which providers to query (e.g., --providers 
 			return nil
 		},
 	}
-	listCmd.Flags().StringSliceVarP(&flags.providersList, providersFlag, "p", []string{}, "Specify providers to query (comma-separated). Defaults to all configured providers.")
+	listCmd.Flags().StringSliceVarP(&cmdFlags.providersList, flags.Providers, flags.ProvidersShort, []string{}, "Specify providers to query (comma-separated). Defaults to all configured providers.")
 
 	describeCmd := &cobra.Command{
 		Use:   "describe [bucket-name]",
@@ -67,7 +62,7 @@ Use the --providers flag to specify which providers to query (e.g., --providers 
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			bucketName := args[0]
-			providerName := flags.provider
+			providerName := cmdFlags.provider
 
 			bucketDetails, err := app.StorageService.DescribeBucket(cmd.Context(), bucketName, providerName)
 			if err != nil {
@@ -78,8 +73,8 @@ Use the --providers flag to specify which providers to query (e.g., --providers 
 			return nil
 		},
 	}
-	describeCmd.Flags().StringVarP(&flags.provider, providerFlag, "p", "", "The provider where the bucket resides (required)")
-	describeCmd.MarkFlagRequired(providerFlag)
+	describeCmd.Flags().StringVarP(&cmdFlags.provider, flags.Provider, flags.ProviderShort, "", "The provider where the bucket resides (required)")
+	describeCmd.MarkFlagRequired(flags.Provider)
 
 	createCmd := &cobra.Command{
 		Use:   "create [bucket-name]",
@@ -88,20 +83,20 @@ Use the --providers flag to specify which providers to query (e.g., --providers 
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			bucketName := args[0]
-			providerName := flags.provider
-			err := app.StorageService.CreateBucket(cmd.Context(), bucketName, providerName, flags.location)
+			providerName := cmdFlags.provider
+			err := app.StorageService.CreateBucket(cmd.Context(), bucketName, providerName, cmdFlags.location)
 			if err != nil {
 				return fmt.Errorf("error creating bucket '%s' on %s: %w", bucketName, providerName, err)
 			}
 
-			fmt.Printf("Bucket '%s' created successfully in %s on provider %s.\n", bucketName, flags.location, providerName)
+			fmt.Printf("Bucket '%s' created successfully in %s on provider %s.\n", bucketName, cmdFlags.location, providerName)
 			return nil
 		},
 	}
-	createCmd.Flags().StringVarP(&flags.provider, providerFlag, "p", "", "The provider to create the bucket on (required)")
-	createCmd.MarkFlagRequired(providerFlag)
-	createCmd.Flags().StringVarP(&flags.location, locationFlag, "l", "", "The location/region to create the bucket in (required)")
-	createCmd.MarkFlagRequired(locationFlag)
+	createCmd.Flags().StringVarP(&cmdFlags.provider, flags.Provider, flags.ProviderShort, "", "The provider to create the bucket on (required)")
+	createCmd.MarkFlagRequired(flags.Provider)
+	createCmd.Flags().StringVarP(&cmdFlags.location, flags.Location, flags.LocationShort, "", "The location/region to create the bucket in (required)")
+	createCmd.MarkFlagRequired(flags.Location)
 
 	deleteCmd := &cobra.Command{
 		Use:   "delete [bucket-name]",
@@ -110,7 +105,7 @@ Use the --providers flag to specify which providers to query (e.g., --providers 
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			bucketName := args[0]
-			providerName := flags.provider
+			providerName := cmdFlags.provider
 
 			err := app.StorageService.DeleteBucket(cmd.Context(), bucketName, providerName)
 			if err != nil {
@@ -121,8 +116,8 @@ Use the --providers flag to specify which providers to query (e.g., --providers 
 			return nil
 		},
 	}
-	deleteCmd.Flags().StringVarP(&flags.provider, providerFlag, "p", "", "The provider where the bucket resides (required)")
-	deleteCmd.MarkFlagRequired(providerFlag)
+	deleteCmd.Flags().StringVarP(&cmdFlags.provider, flags.Provider, flags.ProviderShort, "", "The provider where the bucket resides (required)")
+	deleteCmd.MarkFlagRequired(flags.Provider)
 
 	storageCmd.AddCommand(listCmd, describeCmd, createCmd, deleteCmd)
 	return storageCmd
