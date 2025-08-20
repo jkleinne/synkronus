@@ -6,14 +6,14 @@ import (
 	"fmt"
 	"log/slog"
 	"synkronus/internal/config"
-	"synkronus/internal/provider"
+	"synkronus/internal/provider/registry"
 	"synkronus/pkg/common"
 	"synkronus/pkg/storage"
 	"time"
 )
 
 func init() {
-	provider.RegisterProvider("aws", provider.ProviderRegistration{
+	registry.RegisterProvider("aws", registry.ProviderRegistration{
 		ConfigCheck: isConfigured,
 		Initializer: initialize,
 	})

@@ -8,7 +8,7 @@ import (
 	"log/slog"
 	"math"
 	"synkronus/internal/config"
-	"synkronus/internal/provider"
+	"synkronus/internal/provider/registry"
 	"synkronus/pkg/common"
 	"time"
 
@@ -24,7 +24,7 @@ import (
 )
 
 func init() {
-	provider.RegisterProvider("gcp", provider.ProviderRegistration{
+	registry.RegisterProvider("gcp", registry.ProviderRegistration{
 		ConfigCheck: isConfigured,
 		Initializer: initialize,
 	})
