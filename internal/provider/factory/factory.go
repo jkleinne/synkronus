@@ -1,5 +1,5 @@
-// File: internal/provider/factory.go
-package provider
+// File: internal/provider/factory/factory.go
+package factory
 
 import (
 	"context"
@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strings"
 	"synkronus/internal/config"
+	"synkronus/internal/provider/registry"
 	"synkronus/pkg/storage"
 )
 
@@ -23,12 +24,12 @@ func NewFactory(cfg *config.Config, logger *slog.Logger) *Factory {
 	}
 }
 
+// Returns a list of providers that are registered and configured
 func (f *Factory) GetConfiguredProviders() []string {
-	registryMu.RLock()
-	defer registryMu.RUnlock()
-
 	var configuredProviders []string
-	for name, registration := range providerRegistry {
+	allRegistrations := registry.GetAllRegistrations()
+
+	for name, registration := range allRegistrations {
 		if registration.ConfigCheck(f.cfg) {
 			configuredProviders = append(configuredProviders, name)
 		}
@@ -37,8 +38,9 @@ func (f *Factory) GetConfiguredProviders() []string {
 	return configuredProviders
 }
 
+// Checks if a specific provider is registered and configured
 func (f *Factory) IsConfigured(providerName string) bool {
-	registration, exists := getRegistration(providerName)
+	registration, exists := registry.GetRegistration(providerName)
 	if !exists {
 		return false
 	}
@@ -50,10 +52,10 @@ func (f *Factory) GetStorageProvider(ctx context.Context, providerName string) (
 	normalizedName := strings.ToLower(providerName)
 	providerLogger := f.logger.With("provider", normalizedName)
 
-	registration, exists := getRegistration(normalizedName)
+	registration, exists := registry.GetRegistration(normalizedName)
 
 	if !exists {
-		return nil, fmt.Errorf("unsupported provider: %s. Supported providers are: %v", providerName, GetSupportedProviders())
+		return nil, fmt.Errorf("unsupported provider: %s. Supported providers are: %v", providerName, registry.GetSupportedProviders())
 	}
 
 	if !registration.ConfigCheck(f.cfg) {
