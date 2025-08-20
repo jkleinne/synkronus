@@ -16,4 +16,8 @@ const (
 	// Location flags are used to specify the geographical location or region for resource creation.
 	Location      = "location"
 	LocationShort = "l"
+
+	// Force flags are used to bypass interactive confirmation prompts for destructive operations
+	Force      = "force"
+	ForceShort = "f"
 )
