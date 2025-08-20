@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"math"
 	"synkronus/pkg/common"
 	"time"
 
@@ -16,8 +17,15 @@ import (
 	gcpstorage "cloud.google.com/go/storage"
 	"google.golang.org/api/googleapi"
 	"google.golang.org/api/iterator"
+	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
+
+const metricTimeWindow = 72 * time.Hour
+
+// ErrMetricsNotFound indicates that the usage metrics could not be found within the queried time range
+// This often happens for new buckets that haven't reported metrics yet
+var ErrMetricsNotFound = errors.New("usage metrics not found in the monitoring window")
 
 type GCPStorage struct {
 	client    *gcpstorage.Client
@@ -87,9 +95,8 @@ func (g *GCPStorage) ListBuckets(ctx context.Context) ([]storage.Bucket, error) 
 	return buckets, nil
 }
 
-// Fetches storage metrics for all buckets in the project in one request
 func (g *GCPStorage) getAllBucketUsages(ctx context.Context) (map[string]int64, error) {
-	g.logger.Debug("Fetching GCP bucket usage metrics via Monitoring API")
+	g.logger.Debug("Fetching GCP bucket usage metrics via Monitoring API (Aggregated)")
 	client, err := monitoring.NewMetricClient(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create monitoring client: %w", err)
@@ -97,17 +104,22 @@ func (g *GCPStorage) getAllBucketUsages(ctx context.Context) (map[string]int64, 
 	defer client.Close()
 
 	endTime := time.Now()
-	startTime := endTime.Add(-15 * time.Minute)
+	startTime := endTime.Add(-metricTimeWindow)
 
 	req := &monitoringpb.ListTimeSeriesRequest{
 		Name: fmt.Sprintf("projects/%s", g.projectID),
 		// Request metrics for all buckets
-		Filter: `metric.type="storage.googleapis.com/storage/total_bytes"`,
+		Filter: `metric.type="storage.googleapis.com/storage/v2/total_bytes"`,
 		Interval: &monitoringpb.TimeInterval{
 			StartTime: timestamppb.New(startTime),
 			EndTime:   timestamppb.New(endTime),
 		},
-		View: monitoringpb.ListTimeSeriesRequest_FULL,
+		Aggregation: &monitoringpb.Aggregation{
+			AlignmentPeriod:    durationpb.New(metricTimeWindow),
+			PerSeriesAligner:   monitoringpb.Aggregation_ALIGN_MEAN,
+			CrossSeriesReducer: monitoringpb.Aggregation_REDUCE_SUM,
+			GroupByFields:      []string{"resource.labels.bucket_name"},
+		},
 	}
 
 	usageMap := make(map[string]int64)
@@ -124,16 +136,14 @@ func (g *GCPStorage) getAllBucketUsages(ctx context.Context) (map[string]int64, 
 
 		bucketName, ok := resp.GetResource().GetLabels()["bucket_name"]
 		if !ok {
+			g.logger.Warn("Aggregated metric response missing 'bucket_name' label")
 			continue
 		}
 
-		// Get the latest data point
+		// Get the aggregated data point
 		if len(resp.GetPoints()) > 0 {
-			latestPoint := resp.GetPoints()[0]
-			// Ensure we only store the latest point if multiple series somehow match
-			if _, exists := usageMap[bucketName]; !exists {
-				usageMap[bucketName] = latestPoint.GetValue().GetInt64Value()
-			}
+			pointValue := resp.GetPoints()[0].GetValue()
+			usageMap[bucketName] = extractUsageValue(pointValue)
 		}
 	}
 
@@ -141,7 +151,7 @@ func (g *GCPStorage) getAllBucketUsages(ctx context.Context) (map[string]int64, 
 }
 
 func (g *GCPStorage) getSingleBucketUsage(ctx context.Context, bucketName string) (int64, error) {
-	g.logger.Debug("Fetching single GCP bucket usage metric via Monitoring API", "bucket", bucketName)
+	g.logger.Debug("Fetching single GCP bucket usage metric via Monitoring API (Aggregated)", "bucket", bucketName)
 	client, err := monitoring.NewMetricClient(ctx)
 	if err != nil {
 		return -1, fmt.Errorf("failed to create monitoring client: %w", err)
@@ -149,34 +159,59 @@ func (g *GCPStorage) getSingleBucketUsage(ctx context.Context, bucketName string
 	defer client.Close()
 
 	endTime := time.Now()
-	startTime := endTime.Add(-15 * time.Minute)
+	startTime := endTime.Add(-metricTimeWindow)
 
 	req := &monitoringpb.ListTimeSeriesRequest{
 		Name: fmt.Sprintf("projects/%s", g.projectID),
 		// Request metrics for a single bucket
-		Filter: fmt.Sprintf(`metric.type="storage.googleapis.com/storage/total_bytes" AND resource.labels.bucket_name="%s"`, bucketName),
+		Filter: fmt.Sprintf(`metric.type="storage.googleapis.com/storage/v2/total_bytes" AND resource.labels.bucket_name="%s"`, bucketName),
 		Interval: &monitoringpb.TimeInterval{
 			StartTime: timestamppb.New(startTime),
 			EndTime:   timestamppb.New(endTime),
 		},
-		View: monitoringpb.ListTimeSeriesRequest_FULL,
+		Aggregation: &monitoringpb.Aggregation{
+			AlignmentPeriod:    durationpb.New(metricTimeWindow),
+			PerSeriesAligner:   monitoringpb.Aggregation_ALIGN_MEAN,
+			CrossSeriesReducer: monitoringpb.Aggregation_REDUCE_SUM,
+			GroupByFields:      []string{"resource.labels.bucket_name"},
+		},
 	}
 
 	it := client.ListTimeSeries(ctx, req)
+
+	// Since we aggregated everything into a single point and summed across series,
+	// we expect exactly one time series in the response
 	resp, err := it.Next()
 
 	if err == iterator.Done {
-		return -1, fmt.Errorf("no usage metrics found for bucket %s", bucketName)
+		return -1, ErrMetricsNotFound
 	}
 	if err != nil {
 		return -1, fmt.Errorf("error getting metric data for bucket %s: %w", bucketName, err)
 	}
 
+	// Check if the time series has the aggregated data point
 	if len(resp.GetPoints()) > 0 {
-		return resp.GetPoints()[0].GetValue().GetInt64Value(), nil
+		pointValue := resp.GetPoints()[0].GetValue()
+		return extractUsageValue(pointValue), nil
 	}
 
-	return -1, fmt.Errorf("metric response for bucket %s contained no data points", bucketName)
+	return -1, ErrMetricsNotFound
+}
+
+func extractUsageValue(pointValue *monitoringpb.TypedValue) int64 {
+	if pointValue == nil {
+		return 0
+	}
+
+	switch v := pointValue.Value.(type) {
+	case *monitoringpb.TypedValue_DoubleValue:
+		return int64(math.Round(v.DoubleValue))
+	case *monitoringpb.TypedValue_Int64Value:
+		return v.Int64Value
+	default:
+		return 0
+	}
 }
 
 func (g *GCPStorage) DescribeBucket(ctx context.Context, bucketName string) (storage.Bucket, error) {
@@ -191,7 +226,15 @@ func (g *GCPStorage) DescribeBucket(ctx context.Context, bucketName string) (sto
 	// Fetch usage metrics for only this bucket
 	usage, err := g.getSingleBucketUsage(ctx, bucketName)
 	if err != nil {
-		g.logger.Warn("Failed to retrieve usage metrics, usage will be reported as N/A", "bucket", bucketName, "error", err)
+		logLevel := slog.LevelWarn
+		logMsg := "Failed to retrieve usage metrics due to API error, usage will be reported as N/A"
+
+		if errors.Is(err, ErrMetricsNotFound) {
+			logLevel = slog.LevelInfo
+			logMsg = "Usage metrics not yet available (bucket may be new), usage will be reported as N/A"
+		}
+
+		g.logger.Log(ctx, logLevel, logMsg, "bucket", bucketName, "error", err)
 		usage = -1 // Set usage to unknown on failure
 	}
 
