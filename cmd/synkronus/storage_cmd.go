@@ -3,34 +3,43 @@ package main
 
 import (
 	"fmt"
-	"synkronus/internal/config"
+	"strings"
+	"synkronus/internal/provider"
 
 	"github.com/spf13/cobra"
 )
 
+type storageFlags struct {
+	providersList []string
+	provider      string
+	location      string
+}
+
 func newStorageCmd(app *appContainer) *cobra.Command {
-	var (
-		gcpProvider bool
-		awsProvider bool
-		location    string
-	)
+	flags := storageFlags{}
 
 	storageCmd := &cobra.Command{
 		Use:   "storage",
 		Short: "Manage storage resources like buckets",
-		Long:  `The storage command allows you to list, describe, create, and delete storage buckets from configured cloud providers like AWS and GCP.`,
+		Long:  `The storage command allows you to list, describe, create, and delete storage buckets from configured cloud providers.`,
 	}
 
-	storageCmd.PersistentFlags().BoolVar(&gcpProvider, "gcp", false, "Use GCP provider")
-	storageCmd.PersistentFlags().BoolVar(&awsProvider, "aws", false, "Use AWS provider")
+	const (
+		providerFlag  = "provider"
+		providersFlag = "providers"
+		locationFlag  = "location"
+	)
 
 	listCmd := &cobra.Command{
 		Use:   "list",
 		Short: "List storage buckets",
-		Long:  `Lists all storage buckets from the configured cloud providers. Use flags to specify a provider.`,
+		Long: `Lists all storage buckets. If no flags are provided, it queries all configured providers. 
+Use the --providers flag to specify which providers to query (e.g., --providers gcp,aws).`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			// Resolve which providers the user intends to query
-			providersToQuery := resolveProviders(gcpProvider, awsProvider, app.Config)
+			providersToQuery, err := resolveProvidersForList(flags.providersList, app.ProviderFactory)
+			if err != nil {
+				return err
+			}
 
 			allBuckets, err := app.StorageService.ListAllBuckets(cmd.Context(), providersToQuery)
 			if err != nil {
@@ -41,7 +50,7 @@ func newStorageCmd(app *appContainer) *cobra.Command {
 				fmt.Println(app.StorageFormatter.FormatBucketList(allBuckets))
 			} else {
 				if len(providersToQuery) == 0 {
-					fmt.Println("No providers configured or specified. Use 'synkronus config set' or provider flags (--gcp, --aws).")
+					fmt.Printf("No providers configured. Use 'synkronus config set'. Supported providers: %s\n", strings.Join(provider.GetSupportedProviders(), ", "))
 				} else {
 					fmt.Println("No buckets found.")
 				}
@@ -49,25 +58,16 @@ func newStorageCmd(app *appContainer) *cobra.Command {
 			return nil
 		},
 	}
+	listCmd.Flags().StringSliceVarP(&flags.providersList, providersFlag, "p", []string{}, "Specify providers to query (comma-separated). Defaults to all configured providers.")
 
 	describeCmd := &cobra.Command{
 		Use:   "describe [bucket-name]",
 		Short: "Describe a specific storage bucket",
-		Long:  `Provides detailed information about a specific storage bucket. You must specify the bucket name and the provider flag (--gcp or --aws).`,
+		Long:  `Provides detailed information about a specific storage bucket. You must specify the bucket name and the --provider flag.`,
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			bucketName := args[0]
-
-			if (!gcpProvider && !awsProvider) || (gcpProvider && awsProvider) {
-				return fmt.Errorf("you must specify exactly one provider flag (--gcp or --aws) for the describe command")
-			}
-
-			var providerName string
-			if gcpProvider {
-				providerName = "gcp"
-			} else {
-				providerName = "aws"
-			}
+			providerName := flags.provider
 
 			bucketDetails, err := app.StorageService.DescribeBucket(cmd.Context(), bucketName, providerName)
 			if err != nil {
@@ -78,56 +78,39 @@ func newStorageCmd(app *appContainer) *cobra.Command {
 			return nil
 		},
 	}
+	describeCmd.Flags().StringVarP(&flags.provider, providerFlag, "p", "", "The provider where the bucket resides (required)")
+	describeCmd.MarkFlagRequired(providerFlag)
 
 	createCmd := &cobra.Command{
 		Use:   "create [bucket-name]",
 		Short: "Create a new storage bucket",
-		Long:  `Creates a new storage bucket on the specified provider. You must specify the bucket name, a provider flag (--gcp or --aws), and the location/region flag (--location).`,
+		Long:  `Creates a new storage bucket on the specified provider. You must specify the bucket name, the --provider flag, and the --location flag.`,
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			bucketName := args[0]
-
-			if (!gcpProvider && !awsProvider) || (gcpProvider && awsProvider) {
-				return fmt.Errorf("you must specify exactly one provider flag (--gcp or --aws) for the create command")
-			}
-
-			var providerName string
-			if gcpProvider {
-				providerName = "gcp"
-			} else {
-				providerName = "aws"
-			}
-
-			err := app.StorageService.CreateBucket(cmd.Context(), bucketName, providerName, location)
+			providerName := flags.provider
+			err := app.StorageService.CreateBucket(cmd.Context(), bucketName, providerName, flags.location)
 			if err != nil {
 				return fmt.Errorf("error creating bucket '%s' on %s: %w", bucketName, providerName, err)
 			}
 
-			fmt.Printf("Bucket '%s' created successfully in %s on provider %s.\n", bucketName, location, providerName)
+			fmt.Printf("Bucket '%s' created successfully in %s on provider %s.\n", bucketName, flags.location, providerName)
 			return nil
 		},
 	}
-	createCmd.Flags().StringVar(&location, "location", "", "The location/region to create the bucket in (required)")
-	createCmd.MarkFlagRequired("location")
+	createCmd.Flags().StringVarP(&flags.provider, providerFlag, "p", "", "The provider to create the bucket on (required)")
+	createCmd.MarkFlagRequired(providerFlag)
+	createCmd.Flags().StringVarP(&flags.location, locationFlag, "l", "", "The location/region to create the bucket in (required)")
+	createCmd.MarkFlagRequired(locationFlag)
 
 	deleteCmd := &cobra.Command{
 		Use:   "delete [bucket-name]",
 		Short: "Delete a storage bucket",
-		Long:  `Deletes a storage bucket on the specified provider. You must specify the bucket name and a provider flag (--gcp or --aws).`,
+		Long:  `Deletes a storage bucket on the specified provider. You must specify the bucket name and the --provider flag.`,
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			bucketName := args[0]
-
-			if (!gcpProvider && !awsProvider) || (gcpProvider && awsProvider) {
-				return fmt.Errorf("you must specify exactly one provider flag (--gcp or --aws) for the delete command")
-			}
-
-			var providerName string
-			if gcpProvider {
-				providerName = "gcp"
-			} else {
-				providerName = "aws"
-			}
+			providerName := flags.provider
 
 			err := app.StorageService.DeleteBucket(cmd.Context(), bucketName, providerName)
 			if err != nil {
@@ -138,42 +121,44 @@ func newStorageCmd(app *appContainer) *cobra.Command {
 			return nil
 		},
 	}
+	deleteCmd.Flags().StringVarP(&flags.provider, providerFlag, "p", "", "The provider where the bucket resides (required)")
+	deleteCmd.MarkFlagRequired(providerFlag)
 
 	storageCmd.AddCommand(listCmd, describeCmd, createCmd, deleteCmd)
 	return storageCmd
 }
 
-// Determines the list of provider names based on CLI flags and configuration
-func resolveProviders(useGCP, useAWS bool, cfg *config.Config) []string {
-	var providersToQuery []string
-
-	// Determine intent based on flags
-	onlyGCP := useGCP && !useAWS
-	onlyAWS := useAWS && !useGCP
-	// If no flags are provided, the default is to query all configured providers
-	noFlags := !useGCP && !useAWS
-
-	if onlyGCP {
-		return append(providersToQuery, "gcp")
+func resolveProvidersForList(requestedProviders []string, factory *provider.Factory) ([]string, error) {
+	if len(requestedProviders) == 0 {
+		return factory.GetConfiguredProviders(), nil
 	}
 
-	if onlyAWS {
-		return append(providersToQuery, "aws")
+	var validatedProviders []string
+	var invalidProviders []string
+	seen := make(map[string]bool)
+
+	for _, p := range requestedProviders {
+		p = strings.ToLower(strings.TrimSpace(p))
+
+		if seen[p] {
+			continue
+		}
+		seen[p] = true
+
+		if provider.IsSupported(p) {
+			if factory.IsConfigured(p) {
+				validatedProviders = append(validatedProviders, p)
+			} else {
+				return nil, fmt.Errorf("provider '%s' was requested but is not configured. Use 'synkronus config set %s.<key> <value>'", p, p)
+			}
+		} else {
+			invalidProviders = append(invalidProviders, p)
+		}
 	}
 
-	// Requesting both (explicitly via --gcp and --aws) or implicitly (via no flags)
-	gcpConfigured := cfg.GCP != nil && cfg.GCP.Project != ""
-	awsConfigured := cfg.AWS != nil && cfg.AWS.Region != ""
-
-	// Include GCP if explicitly requested OR if no flags were set AND GCP is configured
-	if useGCP || (noFlags && gcpConfigured) {
-		providersToQuery = append(providersToQuery, "gcp")
+	if len(invalidProviders) > 0 {
+		return nil, fmt.Errorf("unsupported providers requested: %v. Supported providers are: %v", invalidProviders, provider.GetSupportedProviders())
 	}
 
-	// Include AWS if explicitly requested OR if no flags were set AND AWS is configured
-	if useAWS || (noFlags && awsConfigured) {
-		providersToQuery = append(providersToQuery, "aws")
-	}
-
-	return providersToQuery
+	return validatedProviders, nil
 }
