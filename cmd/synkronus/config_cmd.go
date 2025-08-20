@@ -3,6 +3,7 @@ package main
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -12,7 +13,7 @@ func newConfigCmd(app *appContainer) *cobra.Command {
 	configCmd := &cobra.Command{
 		Use:   "config",
 		Short: "Manage configuration settings",
-		Long:  `Manage configuration settings for providers like GCP and AWS. You can set, get, list, and delete configuration values.`,
+		Long:  `Manage configuration settings for providers. You can set, get, list, and delete configuration values.`,
 	}
 
 	configSetCmd := &cobra.Command{
@@ -75,36 +76,66 @@ func newConfigCmd(app *appContainer) *cobra.Command {
 		Short: "List all current configuration values",
 		Long:  `Displays all the key-value pairs currently stored in the configuration.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			var output strings.Builder
-			hasValues := false
-
 			settings := app.ConfigManager.GetAllSettings()
+			flattenedSettings := flattenConfigMap(settings)
 
-			if gcpSettings, ok := settings["gcp"].(map[string]interface{}); ok {
-				if project, ok := gcpSettings["project"].(string); ok && project != "" {
-					output.WriteString(fmt.Sprintf("  gcp.project = %s\n", project))
-					hasValues = true
+			var displaySettings = make(map[string]interface{})
+			for k, v := range flattenedSettings {
+				if s, ok := v.(string); ok {
+					if s != "" {
+						displaySettings[k] = v
+					}
+				} else if v != nil {
+					displaySettings[k] = v
 				}
 			}
 
-			if awsSettings, ok := settings["aws"].(map[string]interface{}); ok {
-				if region, ok := awsSettings["region"].(string); ok && region != "" {
-					output.WriteString(fmt.Sprintf("  aws.region = %s\n", region))
-					hasValues = true
-				}
-			}
-
-			if !hasValues {
+			if len(displaySettings) == 0 {
 				fmt.Println("No configuration values set. Use 'synkronus config set <key> <value>'.")
 				return nil
 			}
 
+			keys := make([]string, 0, len(displaySettings))
+			for k := range displaySettings {
+				keys = append(keys, k)
+			}
+			sort.Strings(keys)
+
 			fmt.Println("Current configuration:")
-			fmt.Print(output.String())
+			for _, k := range keys {
+				fmt.Printf("  %s = %v\n", k, displaySettings[k])
+			}
+
 			return nil
 		},
 	}
 
 	configCmd.AddCommand(configSetCmd, configGetCmd, configDeleteCmd, configListCmd)
 	return configCmd
+}
+
+// Recursively flattens a nested map (like Viper's config) into a flat map with dot notation keys
+func flattenConfigMap(nestedMap map[string]interface{}) map[string]interface{} {
+	flattenedMap := make(map[string]interface{})
+
+	var flatten func(string, interface{})
+	flatten = func(prefix string, value interface{}) {
+		switch v := value.(type) {
+		case map[string]interface{}:
+			for k, val := range v {
+				newPrefix := k
+				if prefix != "" {
+					newPrefix = prefix + "." + k
+				}
+				flatten(newPrefix, val)
+			}
+		default:
+			if prefix != "" {
+				flattenedMap[prefix] = value
+			}
+		}
+	}
+
+	flatten("", nestedMap)
+	return flattenedMap
 }
