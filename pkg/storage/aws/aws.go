@@ -5,10 +5,32 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"synkronus/internal/config"
+	"synkronus/internal/provider"
 	"synkronus/pkg/common"
 	"synkronus/pkg/storage"
 	"time"
 )
+
+func init() {
+	provider.RegisterProvider("aws", provider.ProviderRegistration{
+		ConfigCheck: isConfigured,
+		Initializer: initialize,
+	})
+}
+
+// Checks if the AWS configuration block is present and the region is set
+func isConfigured(cfg *config.Config) bool {
+	return cfg.AWS != nil && cfg.AWS.Region != ""
+}
+
+// Initializes the AWS storage client from the configuration
+func initialize(ctx context.Context, cfg *config.Config, logger *slog.Logger) (storage.Storage, error) {
+	if !isConfigured(cfg) {
+		return nil, fmt.Errorf("AWS configuration missing or incomplete")
+	}
+	return NewAWSStorage(cfg.AWS.Region, logger), nil
+}
 
 type AWSStorage struct {
 	region string

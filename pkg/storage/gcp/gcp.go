@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"log/slog"
 	"math"
+	"synkronus/internal/config"
+	"synkronus/internal/provider"
 	"synkronus/pkg/common"
 	"time"
 
@@ -20,6 +22,26 @@ import (
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
+
+func init() {
+	provider.RegisterProvider("gcp", provider.ProviderRegistration{
+		ConfigCheck: isConfigured,
+		Initializer: initialize,
+	})
+}
+
+// Checks if the GCP configuration block is present and the project ID is set
+func isConfigured(cfg *config.Config) bool {
+	return cfg.GCP != nil && cfg.GCP.Project != ""
+}
+
+// Initializes the GCP storage client from the configuration
+func initialize(ctx context.Context, cfg *config.Config, logger *slog.Logger) (storage.Storage, error) {
+	if !isConfigured(cfg) {
+		return nil, fmt.Errorf("GCP configuration missing or incomplete")
+	}
+	return NewGCPStorage(ctx, cfg.GCP.Project, logger)
+}
 
 const metricTimeWindow = 72 * time.Hour
 
