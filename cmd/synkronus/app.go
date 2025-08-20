@@ -4,7 +4,7 @@ package main
 import (
 	"log/slog"
 	"synkronus/internal/config"
-	"synkronus/internal/provider"
+	"synkronus/internal/provider/factory"
 	"synkronus/internal/service"
 	"synkronus/pkg/formatter"
 )
@@ -14,7 +14,7 @@ import (
 type appContainer struct {
 	Config           *config.Config
 	ConfigManager    *config.ConfigManager
-	ProviderFactory  *provider.Factory
+	ProviderFactory  *factory.Factory
 	StorageService   *service.StorageService
 	StorageFormatter *formatter.StorageFormatter
 	Logger           *slog.Logger
@@ -32,7 +32,7 @@ func newApp(logger *slog.Logger) (*appContainer, error) {
 		return nil, err
 	}
 
-	providerFactory := provider.NewFactory(cfg, logger)
+	providerFactory := factory.NewFactory(cfg, logger)
 	storageService := service.NewStorageService(providerFactory, logger)
 	storageFormatter := formatter.NewStorageFormatter()
 

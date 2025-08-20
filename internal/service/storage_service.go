@@ -7,16 +7,16 @@ import (
 	"log/slog"
 	"sync"
 
-	"synkronus/internal/provider"
+	"synkronus/internal/provider/factory"
 	"synkronus/pkg/storage"
 )
 
 type StorageService struct {
-	providerFactory *provider.Factory
+	providerFactory *factory.Factory
 	logger          *slog.Logger
 }
 
-func NewStorageService(providerFactory *provider.Factory, logger *slog.Logger) *StorageService {
+func NewStorageService(providerFactory *factory.Factory, logger *slog.Logger) *StorageService {
 	return &StorageService{
 		providerFactory: providerFactory,
 		logger:          logger.With("service", "StorageService"),
