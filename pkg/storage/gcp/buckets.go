@@ -116,18 +116,17 @@ func (g *GCPStorage) DescribeBucket(ctx context.Context, bucketName string) (sto
 	return details, nil
 }
 
-// Fetches the bucket's IAM policy and maps it to the domain model
+// Fetches the bucket's IAM policy (using V3) and maps it to the domain model
 func (g *GCPStorage) getIAMPolicy(ctx context.Context, bucketHandle *gcpstorage.BucketHandle) (*storage.IAMPolicy, error) {
-	policy, err := bucketHandle.IAM().Policy(ctx)
+	policy, err := bucketHandle.IAM().V3().Policy(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get IAM policy: %w", err)
+		return nil, fmt.Errorf("failed to get V3 IAM policy: %w", err)
 	}
 
-	// Map the SDK policy structure (which handles V1/V3) to the domain model
+	// Map the SDK V3 policy structure to the domain model
 	var bindings []storage.IAMBinding
 	hasConditions := false
 
-	// Iterate over the Bindings field directly for the most accurate representation
 	for _, binding := range policy.Bindings {
 		// Skip bindings with conditions as they complicate the CLI view and are not yet supported in the detailed model
 		// TODO: add support for conditional bindings in the future
