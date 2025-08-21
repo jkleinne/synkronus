@@ -221,15 +221,16 @@ func (g *GCPStorage) DescribeBucket(ctx context.Context, bucketName string) (sto
 	}
 
 	details := storage.Bucket{
-		Name:                     attrs.Name,
-		Provider:                 common.GCP,
-		Location:                 attrs.Location,
-		StorageClass:             attrs.StorageClass,
-		CreatedAt:                attrs.Created,
-		UpdatedAt:                attrs.Updated,
-		UsageBytes:               usage,
-		Labels:                   attrs.Labels,
-		ACLs:                     aclRules,
+		Name:         attrs.Name,
+		Provider:     common.GCP,
+		Location:     attrs.Location,
+		StorageClass: attrs.StorageClass,
+		CreatedAt:    attrs.Created,
+		UpdatedAt:    attrs.Updated,
+		UsageBytes:   usage,
+		Labels:       attrs.Labels,
+		ACLs:         aclRules,
+		// Mapping functions are now called from mappers.go
 		LifecycleRules:           mapLifecycleRules(attrs.Lifecycle.Rules),
 		Logging:                  mapLogging(attrs.Logging),
 		Versioning:               &storage.Versioning{Enabled: attrs.VersioningEnabled},
@@ -262,63 +263,6 @@ func (g *GCPStorage) getACLs(ctx context.Context, bucketHandle *gcpstorage.Bucke
 		})
 	}
 	return acls, nil
-}
-
-func mapLifecycleRules(rules []gcpstorage.LifecycleRule) []storage.LifecycleRule {
-	if len(rules) == 0 {
-		return nil
-	}
-	var result []storage.LifecycleRule
-	for _, r := range rules {
-		var actionStr string
-		// Refine action string for better readability
-		if r.Action.StorageClass != "" {
-			actionStr = fmt.Sprintf("%s to %s", r.Action.Type, r.Action.StorageClass)
-		} else {
-			actionStr = r.Action.Type
-		}
-
-		result = append(result, storage.LifecycleRule{
-			Action: actionStr,
-			Condition: storage.LifecycleCondition{
-				Age:                 int(r.Condition.AgeInDays),
-				CreatedBefore:       r.Condition.CreatedBefore,
-				MatchesStorageClass: r.Condition.MatchesStorageClasses,
-				NumNewerVersions:    int(r.Condition.NumNewerVersions),
-			},
-		})
-	}
-	return result
-}
-
-func mapLogging(l *gcpstorage.BucketLogging) *storage.Logging {
-	if l == nil {
-		return nil
-	}
-	return &storage.Logging{
-		LogBucket:       l.LogBucket,
-		LogObjectPrefix: l.LogObjectPrefix,
-	}
-}
-
-func mapSoftDeletePolicy(sdp *gcpstorage.SoftDeletePolicy) *storage.SoftDeletePolicy {
-	if sdp == nil {
-		return nil
-	}
-	return &storage.SoftDeletePolicy{
-		RetentionDuration: sdp.RetentionDuration,
-	}
-}
-
-func mapPublicAccessPrevention(pap gcpstorage.PublicAccessPrevention) string {
-	switch pap {
-	case gcpstorage.PublicAccessPreventionEnforced:
-		return "Enforced"
-	case gcpstorage.PublicAccessPreventionInherited:
-		return "Inherited"
-	default:
-		return "Unknown"
-	}
 }
 
 func (g *GCPStorage) CreateBucket(ctx context.Context, bucketName string, location string) error {
