@@ -2,6 +2,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 	"synkronus/internal/flags"
@@ -11,10 +12,14 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// ErrOperationAborted indicates that the user chose not to proceed with a destructive operation
+var ErrOperationAborted = errors.New("operation aborted by the user")
+
 type storageFlags struct {
 	providersList []string
 	provider      string
 	location      string
+	force         bool
 }
 
 func newStorageCmd(app *appContainer) *cobra.Command {
@@ -102,11 +107,25 @@ Use the --providers flag to specify which providers to query (e.g., --providers 
 	deleteCmd := &cobra.Command{
 		Use:   "delete [bucket-name]",
 		Short: "Delete a storage bucket",
-		Long:  `Deletes a storage bucket on the specified provider. You must specify the bucket name and the --provider flag.`,
-		Args:  cobra.ExactArgs(1),
+		Long: `Deletes a storage bucket on the specified provider. This operation is destructive. 
+Confirmation is required by typing the bucket name, unless the --force flag is used.`,
+		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			bucketName := args[0]
 			providerName := cmdFlags.provider
+
+			if !cmdFlags.force {
+				warningMessage := fmt.Sprintf("\nWARNING: You are about to delete the bucket '%s' on provider '%s'.\nThis action CANNOT be undone and may result in permanent data loss.", bucketName, strings.ToUpper(providerName))
+
+				confirmed, err := app.Prompter.Confirm(warningMessage, bucketName)
+				if err != nil {
+					return fmt.Errorf("failed to read confirmation input: %w", err)
+				}
+				if !confirmed {
+					fmt.Println("Deletion aborted: Confirmation mismatch or cancelled.")
+					return ErrOperationAborted
+				}
+			}
 
 			err := app.StorageService.DeleteBucket(cmd.Context(), bucketName, providerName)
 			if err != nil {
@@ -119,6 +138,7 @@ Use the --providers flag to specify which providers to query (e.g., --providers 
 	}
 	deleteCmd.Flags().StringVarP(&cmdFlags.provider, flags.Provider, flags.ProviderShort, "", "The provider where the bucket resides (required)")
 	deleteCmd.MarkFlagRequired(flags.Provider)
+	deleteCmd.Flags().BoolVarP(&cmdFlags.force, flags.Force, flags.ForceShort, false, "If set, bypass the interactive confirmation prompt and proceed with deletion")
 
 	storageCmd.AddCommand(listCmd, describeCmd, createCmd, deleteCmd)
 	return storageCmd

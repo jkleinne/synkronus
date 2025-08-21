@@ -3,9 +3,11 @@ package main
 
 import (
 	"log/slog"
+	"os"
 	"synkronus/internal/config"
 	"synkronus/internal/provider/factory"
 	"synkronus/internal/service"
+	"synkronus/internal/ui/prompt"
 	"synkronus/pkg/formatter"
 )
 
@@ -17,6 +19,7 @@ type appContainer struct {
 	ProviderFactory  *factory.Factory
 	StorageService   *service.StorageService
 	StorageFormatter *formatter.StorageFormatter
+	Prompter         prompt.Prompter
 	Logger           *slog.Logger
 }
 
@@ -36,12 +39,15 @@ func newApp(logger *slog.Logger) (*appContainer, error) {
 	storageService := service.NewStorageService(providerFactory, logger)
 	storageFormatter := formatter.NewStorageFormatter()
 
+	prompter := prompt.NewStandardPrompter(os.Stdin, os.Stdout)
+
 	return &appContainer{
 		Config:           cfg,
 		ConfigManager:    cfgManager,
 		ProviderFactory:  providerFactory,
 		StorageService:   storageService,
 		StorageFormatter: storageFormatter,
+		Prompter:         prompter,
 		Logger:           logger,
 	}, nil
 }
