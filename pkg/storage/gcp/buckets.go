@@ -1,4 +1,4 @@
-// File: pkg/storage/gcp/gcp.go
+// File: pkg/storage/gcp/buckets.go
 package gcp
 
 import (
@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"log/slog"
 	"synkronus/pkg/common"
-
 	"synkronus/pkg/storage"
 
 	gcpstorage "cloud.google.com/go/storage"
@@ -67,7 +66,6 @@ func (g *GCPStorage) DescribeBucket(ctx context.Context, bucketName string) (sto
 		return storage.Bucket{}, fmt.Errorf("error getting bucket attributes: %w", err)
 	}
 
-	// Fetch usage metrics for only this bucket
 	usage, err := g.getSingleBucketUsage(ctx, bucketName)
 	if err != nil {
 		logLevel := slog.LevelWarn
@@ -85,7 +83,7 @@ func (g *GCPStorage) DescribeBucket(ctx context.Context, bucketName string) (sto
 	// Fetch ACLs (separate API call)
 	aclRules, err := g.getACLs(ctx, bucketHandle)
 	if err != nil {
-		// Log a warning but don't fail the entire operation, as ACLs might not be readable.
+		// Log a warning but don't fail the entire operation, as ACLs might not be readable
 		g.logger.Warn("Could not retrieve ACLs for bucket", "bucket", bucketName, "error", err)
 	}
 
@@ -99,7 +97,7 @@ func (g *GCPStorage) DescribeBucket(ctx context.Context, bucketName string) (sto
 		UsageBytes:   usage,
 		Labels:       attrs.Labels,
 		ACLs:         aclRules,
-		// Mapping functions are now called from mappers.go
+		// Mapping functions are called from mappers.go
 		LifecycleRules:           mapLifecycleRules(attrs.Lifecycle.Rules),
 		Logging:                  mapLogging(attrs.Logging),
 		Versioning:               &storage.Versioning{Enabled: attrs.VersioningEnabled},
@@ -111,13 +109,11 @@ func (g *GCPStorage) DescribeBucket(ctx context.Context, bucketName string) (sto
 	return details, nil
 }
 
-// getACLs fetches the bucket's ACLs.
+// getACLs fetches the bucket's ACLs
 func (g *GCPStorage) getACLs(ctx context.Context, bucketHandle *gcpstorage.BucketHandle) ([]storage.ACLRule, error) {
 	gcpAcls, err := bucketHandle.ACL().List(ctx)
 	if err != nil {
 		var gcsErr *googleapi.Error
-		// If Uniform Bucket-Level Access is enabled, this call fails with a 400.
-		// We can check for this specific error and return an empty list.
 		if errors.As(err, &gcsErr) && gcsErr.Code == 400 {
 			return []storage.ACLRule{}, nil
 		}
