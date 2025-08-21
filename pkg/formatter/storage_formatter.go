@@ -4,6 +4,7 @@ package formatter
 import (
 	"fmt"
 	"strings"
+	"synkronus/pkg/common"
 	"synkronus/pkg/storage"
 	"time"
 )
@@ -75,27 +76,99 @@ func (f *StorageFormatter) formatAccessControlSection(bucket storage.Bucket) str
 	sb.WriteString(FormatSectionTitle("Access Control & Logging"))
 	sb.WriteString("\n")
 
+	// --- Configuration Summary Table ---
 	configTable := NewTable([]string{"Configuration", "Status"})
+
+	isUBLAEnabled := bucket.UniformBucketLevelAccess != nil && bucket.UniformBucketLevelAccess.Enabled
+
 	if bucket.UniformBucketLevelAccess != nil {
-		status := "Disabled"
-		if bucket.UniformBucketLevelAccess.Enabled {
-			status = "Enabled"
+		status := "Disabled (Fine-grained via ACLs/IAM)"
+		if isUBLAEnabled {
+			status = "Enabled (Uniform via IAM)"
 		}
 		configTable.AddRow([]string{"Uniform Bucket-Level Access", status})
 	}
 	configTable.AddRow([]string{"Public Access Prevention", strings.ToTitle(bucket.PublicAccessPrevention)})
 
 	if bucket.Logging != nil {
-		configTable.AddRow([]string{"Usage Logging", fmt.Sprintf("gs://%s/%s", bucket.Logging.LogBucket, bucket.Logging.LogObjectPrefix)})
+		// Display a recognizable URI based on the provider
+		prefix := ""
+		if bucket.Provider == common.GCP {
+			prefix = "gs://"
+		} else if bucket.Provider == common.AWS {
+			prefix = "s3://"
+		}
+		configTable.AddRow([]string{"Usage Logging", fmt.Sprintf("%s%s/%s", prefix, bucket.Logging.LogBucket, bucket.Logging.LogObjectPrefix)})
 	} else {
 		configTable.AddRow([]string{"Usage Logging", "Not configured"})
 	}
 	sb.WriteString(configTable.String())
 	sb.WriteString("\n\n")
 
-	// Only show ACLs if Uniform Bucket-Level Access is disabled
-	if bucket.UniformBucketLevelAccess != nil && !bucket.UniformBucketLevelAccess.Enabled && len(bucket.ACLs) > 0 {
+	// --- IAM Policy Display ---
+	sb.WriteString(f.formatIAMPolicy(bucket.IAMPolicy))
+
+	// --- ACL Display Logic ---
+	sb.WriteString(f.formatACLs(bucket, isUBLAEnabled))
+
+	return sb.String()
+}
+
+func (f *StorageFormatter) formatIAMPolicy(policy *storage.IAMPolicy) string {
+	var sb strings.Builder
+
+	sb.WriteString("Identity and Access Management (IAM) Policy:\n")
+
+	if policy == nil {
+		sb.WriteString("  (Could not retrieve IAM policy - check permissions)\n\n")
+		return sb.String()
+	}
+
+	if len(policy.Bindings) == 0 && !policy.HasConditions {
+		sb.WriteString("  (No IAM bindings found)\n\n")
+		return sb.String()
+	}
+
+	iamTable := NewTable([]string{"Role", "Principal(s)"})
+
+	for _, binding := range policy.Bindings {
+		if len(binding.Principals) == 0 {
+			continue
+		}
+
+		// Add the first principal on the same row as the role
+		iamTable.AddRow([]string{binding.Role, binding.Principals[0]})
+
+		// Add subsequent principals on new rows, leaving the role column empty for visual grouping
+		for i := 1; i < len(binding.Principals); i++ {
+			iamTable.AddRow([]string{"", binding.Principals[i]})
+		}
+	}
+
+	sb.WriteString(iamTable.String())
+	sb.WriteString("\n")
+
+	if policy.HasConditions {
+		sb.WriteString("Note: This policy contains conditional bindings which are not displayed here.\n")
+	}
+	sb.WriteString("\n")
+
+	return sb.String()
+}
+
+func (f *StorageFormatter) formatACLs(bucket storage.Bucket, isUBLAEnabled bool) string {
+	var sb strings.Builder
+
+	if isUBLAEnabled {
+		// If UBLA is enabled, ACLs are inactive
 		sb.WriteString("Access Control List (ACLs):\n")
+		sb.WriteString("  (Inactive because Uniform Bucket-Level Access is enabled. IAM policies control access.)\n\n")
+		return sb.String()
+	}
+
+	if len(bucket.ACLs) > 0 {
+		// Display ACLs if UBLA is disabled (or not applicable) and ACLs exist
+		sb.WriteString("Access Control List (ACLs) - (Fine-grained object control):\n")
 		aclTable := NewTable([]string{"Entity", "Role"})
 		for _, acl := range bucket.ACLs {
 			aclTable.AddRow([]string{acl.Entity, acl.Role})

@@ -18,6 +18,7 @@ type Bucket struct {
 	UsageBytes int64
 	Labels     map[string]string
 
+	IAMPolicy                *IAMPolicy
 	ACLs                     []ACLRule
 	LifecycleRules           []LifecycleRule
 	Logging                  *Logging
@@ -42,6 +43,20 @@ type SoftDeletePolicy struct {
 
 type UniformBucketLevelAccess struct {
 	Enabled bool
+}
+
+// Represents the IAM policy attached to a resource
+type IAMPolicy struct {
+	// Associates a list of principals with a role
+	Bindings []IAMBinding
+	// Indicates if the policy contains conditional bindings that are not displayed
+	HasConditions bool
+}
+
+// Represents a single binding in an IAM policy
+type IAMBinding struct {
+	Role       string
+	Principals []string
 }
 
 type ACLRule struct {
