@@ -88,16 +88,15 @@ func (g *GCPStorage) DescribeBucket(ctx context.Context, bucketName string) (sto
 	}
 
 	details := storage.Bucket{
-		Name:         attrs.Name,
-		Provider:     common.GCP,
-		Location:     attrs.Location,
-		StorageClass: attrs.StorageClass,
-		CreatedAt:    attrs.Created,
-		UpdatedAt:    attrs.Updated,
-		UsageBytes:   usage,
-		Labels:       attrs.Labels,
-		ACLs:         aclRules,
-		// Mapping functions are called from mappers.go
+		Name:                     attrs.Name,
+		Provider:                 common.GCP,
+		Location:                 attrs.Location,
+		StorageClass:             attrs.StorageClass,
+		CreatedAt:                attrs.Created,
+		UpdatedAt:                attrs.Updated,
+		UsageBytes:               usage,
+		Labels:                   attrs.Labels,
+		ACLs:                     aclRules,
 		LifecycleRules:           mapLifecycleRules(attrs.Lifecycle.Rules),
 		Logging:                  mapLogging(attrs.Logging),
 		Versioning:               &storage.Versioning{Enabled: attrs.VersioningEnabled},
