@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"sort"
 	"synkronus/pkg/common"
 	"synkronus/pkg/storage"
 
@@ -87,6 +88,12 @@ func (g *GCPStorage) DescribeBucket(ctx context.Context, bucketName string) (sto
 		g.logger.Warn("Could not retrieve ACLs for bucket", "bucket", bucketName, "error", err)
 	}
 
+	// Fetch IAM Policy (separate API call)
+	iamPolicy, err := g.getIAMPolicy(ctx, bucketHandle)
+	if err != nil {
+		g.logger.Warn("Could not retrieve IAM policy for bucket. Requires 'storage.buckets.getIamPolicy' permission.", "bucket", bucketName, "error", err)
+	}
+
 	details := storage.Bucket{
 		Name:                     attrs.Name,
 		Provider:                 common.GCP,
@@ -96,6 +103,7 @@ func (g *GCPStorage) DescribeBucket(ctx context.Context, bucketName string) (sto
 		UpdatedAt:                attrs.Updated,
 		UsageBytes:               usage,
 		Labels:                   attrs.Labels,
+		IAMPolicy:                iamPolicy,
 		ACLs:                     aclRules,
 		LifecycleRules:           mapLifecycleRules(attrs.Lifecycle.Rules),
 		Logging:                  mapLogging(attrs.Logging),
@@ -108,11 +116,55 @@ func (g *GCPStorage) DescribeBucket(ctx context.Context, bucketName string) (sto
 	return details, nil
 }
 
+// Fetches the bucket's IAM policy and maps it to the domain model
+func (g *GCPStorage) getIAMPolicy(ctx context.Context, bucketHandle *gcpstorage.BucketHandle) (*storage.IAMPolicy, error) {
+	policy, err := bucketHandle.IAM().Policy(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get IAM policy: %w", err)
+	}
+
+	// Map the SDK policy structure (which handles V1/V3) to the domain model
+	var bindings []storage.IAMBinding
+	hasConditions := false
+
+	// Iterate over the Bindings field directly for the most accurate representation
+	for _, binding := range policy.Bindings {
+		// Skip bindings with conditions as they complicate the CLI view and are not yet supported in the detailed model
+		// TODO: add support for conditional bindings in the future
+		if binding.Condition != nil {
+			g.logger.Debug("Skipping conditional IAM binding", "role", binding.Role, "condition", binding.Condition.Title)
+			hasConditions = true
+			continue
+		}
+
+		// Ensure principals are sorted for deterministic output
+		principals := make([]string, len(binding.Members))
+		copy(principals, binding.Members)
+		sort.Strings(principals)
+
+		bindings = append(bindings, storage.IAMBinding{
+			Role:       binding.Role,
+			Principals: principals,
+		})
+	}
+
+	// Sort bindings by role name for deterministic output
+	sort.Slice(bindings, func(i, j int) bool {
+		return bindings[i].Role < bindings[j].Role
+	})
+
+	return &storage.IAMPolicy{
+		Bindings:      bindings,
+		HasConditions: hasConditions,
+	}, nil
+}
+
 // getACLs fetches the bucket's ACLs
 func (g *GCPStorage) getACLs(ctx context.Context, bucketHandle *gcpstorage.BucketHandle) ([]storage.ACLRule, error) {
 	gcpAcls, err := bucketHandle.ACL().List(ctx)
 	if err != nil {
 		var gcsErr *googleapi.Error
+		// If UBLA is enabled, GCP returns a 400 error when trying to list ACLs (treating as expected behavior)
 		if errors.As(err, &gcsErr) && gcsErr.Code == 400 {
 			return []storage.ACLRule{}, nil
 		}
