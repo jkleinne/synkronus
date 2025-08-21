@@ -7,8 +7,6 @@ import (
 	"fmt"
 	"log/slog"
 	"math"
-	"synkronus/internal/config"
-	"synkronus/internal/provider/registry"
 	"synkronus/pkg/common"
 	"time"
 
@@ -23,56 +21,11 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-func init() {
-	registry.RegisterProvider("gcp", registry.ProviderRegistration{
-		ConfigCheck: isConfigured,
-		Initializer: initialize,
-	})
-}
-
-// Checks if the GCP configuration block is present and the project ID is set
-func isConfigured(cfg *config.Config) bool {
-	return cfg.GCP != nil && cfg.GCP.Project != ""
-}
-
-// Initializes the GCP storage client from the configuration
-func initialize(ctx context.Context, cfg *config.Config, logger *slog.Logger) (storage.Storage, error) {
-	if !isConfigured(cfg) {
-		return nil, fmt.Errorf("GCP configuration missing or incomplete")
-	}
-	return NewGCPStorage(ctx, cfg.GCP.Project, logger)
-}
-
 const metricTimeWindow = 72 * time.Hour
 
 // ErrMetricsNotFound indicates that the usage metrics could not be found within the queried time range
 // This often happens for new buckets that haven't reported metrics yet
 var ErrMetricsNotFound = errors.New("usage metrics not found in the monitoring window")
-
-type GCPStorage struct {
-	client    *gcpstorage.Client
-	projectID string
-	logger    *slog.Logger
-}
-
-var _ storage.Storage = (*GCPStorage)(nil)
-
-func NewGCPStorage(ctx context.Context, projectID string, logger *slog.Logger) (*GCPStorage, error) {
-	client, err := gcpstorage.NewClient(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create GCP storage client: %w", err)
-	}
-
-	return &GCPStorage{
-		client:    client,
-		projectID: projectID,
-		logger:    logger,
-	}, nil
-}
-
-func (g *GCPStorage) ProviderName() common.Provider {
-	return common.GCP
-}
 
 func (g *GCPStorage) ListBuckets(ctx context.Context) ([]storage.Bucket, error) {
 	g.logger.Debug("Starting GCP ListBuckets operation")
@@ -383,13 +336,6 @@ func (g *GCPStorage) DeleteBucket(ctx context.Context, bucketName string) error 
 	bucket := g.client.Bucket(bucketName)
 	if err := bucket.Delete(ctx); err != nil {
 		return fmt.Errorf("failed to delete bucket: %w", err)
-	}
-	return nil
-}
-
-func (g *GCPStorage) Close() error {
-	if g.client != nil {
-		return g.client.Close()
 	}
 	return nil
 }
