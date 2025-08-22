@@ -29,6 +29,8 @@ type Bucket struct {
 	SoftDeletePolicy         *SoftDeletePolicy
 	UniformBucketLevelAccess *UniformBucketLevelAccess
 	PublicAccessPrevention   string
+	Encryption               *Encryption
+	RetentionPolicy          *RetentionPolicy
 }
 
 type Autoclass struct {
@@ -50,6 +52,15 @@ type SoftDeletePolicy struct {
 
 type UniformBucketLevelAccess struct {
 	Enabled bool
+}
+
+type Encryption struct {
+	KmsKeyName string
+}
+
+type RetentionPolicy struct {
+	RetentionPeriod time.Duration
+	IsLocked        bool
 }
 
 // Represents the IAM policy attached to a resource
