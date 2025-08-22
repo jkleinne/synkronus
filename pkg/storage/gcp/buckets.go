@@ -102,6 +102,7 @@ func (g *GCPStorage) DescribeBucket(ctx context.Context, bucketName string) (sto
 		CreatedAt:                attrs.Created,
 		UpdatedAt:                attrs.Updated,
 		UsageBytes:               usage,
+		RequesterPays:            attrs.RequesterPays,
 		Labels:                   attrs.Labels,
 		IAMPolicy:                iamPolicy,
 		ACLs:                     aclRules,

@@ -15,8 +15,9 @@ type Bucket struct {
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
 	// A value of -1 indicates that the usage is unknown or could not be retrieved
-	UsageBytes int64
-	Labels     map[string]string
+	UsageBytes    int64
+	RequesterPays bool
+	Labels        map[string]string
 
 	IAMPolicy                *IAMPolicy
 	ACLs                     []ACLRule
