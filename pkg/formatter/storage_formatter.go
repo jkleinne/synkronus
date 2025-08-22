@@ -207,6 +207,13 @@ func (f *StorageFormatter) formatDataProtectionSection(bucket storage.Bucket) st
 	sb.WriteString("\n")
 
 	protectionTable := NewTable([]string{"Feature", "Configuration"})
+
+	if bucket.Encryption != nil && bucket.Encryption.KmsKeyName != "" {
+		protectionTable.AddRow([]string{"Encryption (CMEK)", bucket.Encryption.KmsKeyName})
+	} else {
+		protectionTable.AddRow([]string{"Encryption (CMEK)", "Google-managed"})
+	}
+
 	if bucket.Versioning != nil {
 		status := "Suspended"
 		if bucket.Versioning.Enabled {
@@ -214,10 +221,21 @@ func (f *StorageFormatter) formatDataProtectionSection(bucket storage.Bucket) st
 		}
 		protectionTable.AddRow([]string{"Object Versioning", status})
 	}
+
 	if bucket.SoftDeletePolicy != nil {
 		protectionTable.AddRow([]string{"Soft Delete Policy", fmt.Sprintf("Enabled (Retention: %v)", bucket.SoftDeletePolicy.RetentionDuration)})
 	} else {
 		protectionTable.AddRow([]string{"Soft Delete Policy", "Disabled"})
+	}
+
+	if bucket.RetentionPolicy != nil {
+		lockedStatus := ""
+		if bucket.RetentionPolicy.IsLocked {
+			lockedStatus = ", Locked"
+		}
+		protectionTable.AddRow([]string{"Retention Policy", fmt.Sprintf("Enabled (Period: %v%s)", bucket.RetentionPolicy.RetentionPeriod, lockedStatus)})
+	} else {
+		protectionTable.AddRow([]string{"Retention Policy", "Disabled"})
 	}
 
 	sb.WriteString(protectionTable.String())

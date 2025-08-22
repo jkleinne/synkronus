@@ -64,3 +64,23 @@ func mapPublicAccessPrevention(pap gcpstorage.PublicAccessPrevention) string {
 		return "Unknown"
 	}
 }
+
+func mapEncryption(e *gcpstorage.BucketEncryption) *storage.Encryption {
+	if e == nil || e.DefaultKMSKeyName == "" {
+		// Empty key name implies Google-managed encryption
+		return nil
+	}
+	return &storage.Encryption{
+		KmsKeyName: e.DefaultKMSKeyName,
+	}
+}
+
+func mapRetentionPolicy(rp *gcpstorage.RetentionPolicy) *storage.RetentionPolicy {
+	if rp == nil {
+		return nil
+	}
+	return &storage.RetentionPolicy{
+		RetentionPeriod: rp.RetentionPeriod,
+		IsLocked:        rp.IsLocked,
+	}
+}
