@@ -61,6 +61,15 @@ func (f *StorageFormatter) formatOverviewSection(bucket storage.Bucket) string {
 	overviewTable.AddRow([]string{"Location / Region", bucket.Location})
 	overviewTable.AddRow([]string{"Default Storage Class", bucket.StorageClass})
 	overviewTable.AddRow([]string{"Usage (Total Bytes)", storage.FormatBytes(bucket.UsageBytes)})
+
+	requesterPaysStatus := "Disabled"
+	if bucket.RequesterPays {
+		requesterPaysStatus = "Enabled"
+	}
+	if bucket.Provider == common.GCP {
+		overviewTable.AddRow([]string{"Requester Pays", requesterPaysStatus})
+	}
+
 	overviewTable.AddRow([]string{"Created On", bucket.CreatedAt.Format(time.RFC1123)})
 	overviewTable.AddRow([]string{"Updated On", bucket.UpdatedAt.Format(time.RFC1123)})
 
