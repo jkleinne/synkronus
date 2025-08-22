@@ -11,6 +11,7 @@ type Bucket struct {
 	Name         string
 	Provider     common.Provider
 	Location     string
+	LocationType string
 	StorageClass string
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
@@ -19,6 +20,7 @@ type Bucket struct {
 	RequesterPays bool
 	Labels        map[string]string
 
+	Autoclass                *Autoclass
 	IAMPolicy                *IAMPolicy
 	ACLs                     []ACLRule
 	LifecycleRules           []LifecycleRule
@@ -27,6 +29,10 @@ type Bucket struct {
 	SoftDeletePolicy         *SoftDeletePolicy
 	UniformBucketLevelAccess *UniformBucketLevelAccess
 	PublicAccessPrevention   string
+}
+
+type Autoclass struct {
+	Enabled bool
 }
 
 type Versioning struct {

@@ -58,9 +58,20 @@ func (f *StorageFormatter) formatOverviewSection(bucket storage.Bucket) string {
 
 	overviewTable := NewTable([]string{"Parameter", "Value"})
 	overviewTable.AddRow([]string{"Provider", string(bucket.Provider)})
-	overviewTable.AddRow([]string{"Location / Region", bucket.Location})
+	overviewTable.AddRow([]string{"Location", bucket.Location})
+	if bucket.Provider == common.GCP && bucket.LocationType != "" {
+		overviewTable.AddRow([]string{"Location Type", bucket.LocationType})
+	}
 	overviewTable.AddRow([]string{"Default Storage Class", bucket.StorageClass})
 	overviewTable.AddRow([]string{"Usage (Total Bytes)", storage.FormatBytes(bucket.UsageBytes)})
+
+	if bucket.Provider == common.GCP && bucket.Autoclass != nil {
+		autoclassStatus := "Disabled"
+		if bucket.Autoclass.Enabled {
+			autoclassStatus = "Enabled"
+		}
+		overviewTable.AddRow([]string{"Autoclass", autoclassStatus})
+	}
 
 	requesterPaysStatus := "Disabled"
 	if bucket.RequesterPays {
