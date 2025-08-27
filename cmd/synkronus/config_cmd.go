@@ -9,7 +9,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func newConfigCmd(app *appContainer) *cobra.Command {
+func newConfigCmd() *cobra.Command {
 	configCmd := &cobra.Command{
 		Use:   "config",
 		Short: "Manage configuration settings",
@@ -22,6 +22,11 @@ func newConfigCmd(app *appContainer) *cobra.Command {
 		Long:  `Sets a configuration value. For example: 'synkronus config set gcp.project my-gcp-123'`,
 		Args:  cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			app, err := appFromContext(cmd.Context())
+			if err != nil {
+				return err
+			}
+
 			key := strings.ToLower(args[0])
 			value := args[1]
 
@@ -39,6 +44,11 @@ func newConfigCmd(app *appContainer) *cobra.Command {
 		Long:  `Retrieves a configuration value for a given key. For example: 'synkronus config get gcp.project'`,
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			app, err := appFromContext(cmd.Context())
+			if err != nil {
+				return err
+			}
+
 			key := strings.ToLower(args[0])
 			value, exists := app.ConfigManager.GetValue(key)
 
@@ -56,6 +66,11 @@ func newConfigCmd(app *appContainer) *cobra.Command {
 		Long:  `Deletes a configuration value for a given key. For example: 'synkronus config delete gcp.project'`,
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			app, err := appFromContext(cmd.Context())
+			if err != nil {
+				return err
+			}
+
 			key := strings.ToLower(args[0])
 			deleted, err := app.ConfigManager.DeleteValue(key)
 
@@ -76,6 +91,11 @@ func newConfigCmd(app *appContainer) *cobra.Command {
 		Short: "List all current configuration values",
 		Long:  `Displays all the key-value pairs currently stored in the configuration.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			app, err := appFromContext(cmd.Context())
+			if err != nil {
+				return err
+			}
+
 			settings := app.ConfigManager.GetAllSettings()
 			flattenedSettings := flattenConfigMap(settings)
 
