@@ -22,7 +22,7 @@ type storageFlags struct {
 	force         bool
 }
 
-func newStorageCmd(app *appContainer) *cobra.Command {
+func newStorageCmd() *cobra.Command {
 	cmdFlags := storageFlags{}
 
 	storageCmd := &cobra.Command{
@@ -37,6 +37,11 @@ func newStorageCmd(app *appContainer) *cobra.Command {
 		Long: `Lists all storage buckets. If no flags are provided, it queries all configured providers. 
 Use the --providers flag to specify which providers to query (e.g., --providers gcp,aws).`,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			app, err := appFromContext(cmd.Context())
+			if err != nil {
+				return err
+			}
+
 			providersToQuery, err := resolveProvidersForList(cmdFlags.providersList, app.ProviderFactory)
 			if err != nil {
 				return err
@@ -67,6 +72,11 @@ Use the --providers flag to specify which providers to query (e.g., --providers 
 		Long:  `Provides detailed information about a specific storage bucket. You must specify the bucket name and the --provider flag.`,
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			app, err := appFromContext(cmd.Context())
+			if err != nil {
+				return err
+			}
+
 			bucketName := args[0]
 			providerName := cmdFlags.provider
 
@@ -88,9 +98,14 @@ Use the --providers flag to specify which providers to query (e.g., --providers 
 		Long:  `Creates a new storage bucket on the specified provider. You must specify the bucket name, the --provider flag, and the --location flag.`,
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			app, err := appFromContext(cmd.Context())
+			if err != nil {
+				return err
+			}
+
 			bucketName := args[0]
 			providerName := cmdFlags.provider
-			err := app.StorageService.CreateBucket(cmd.Context(), bucketName, providerName, cmdFlags.location)
+			err = app.StorageService.CreateBucket(cmd.Context(), bucketName, providerName, cmdFlags.location)
 			if err != nil {
 				return fmt.Errorf("error creating bucket '%s' on %s: %w", bucketName, providerName, err)
 			}
@@ -111,6 +126,11 @@ Use the --providers flag to specify which providers to query (e.g., --providers 
 Confirmation is required by typing the bucket name, unless the --force flag is used.`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			app, err := appFromContext(cmd.Context())
+			if err != nil {
+				return err
+			}
+
 			bucketName := args[0]
 			providerName := cmdFlags.provider
 
@@ -127,7 +147,7 @@ Confirmation is required by typing the bucket name, unless the --force flag is u
 				}
 			}
 
-			err := app.StorageService.DeleteBucket(cmd.Context(), bucketName, providerName)
+			err = app.StorageService.DeleteBucket(cmd.Context(), bucketName, providerName)
 			if err != nil {
 				return fmt.Errorf("error deleting bucket '%s' on %s: %w", bucketName, providerName, err)
 			}

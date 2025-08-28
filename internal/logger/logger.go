@@ -6,10 +6,9 @@ import (
 	"os"
 )
 
-func NewLogger() *slog.Logger {
-	// TODO: Allow configuring log level (e.g., Debug) via environment variables or flags
+func NewLogger(level slog.Level) *slog.Logger {
 	opts := &slog.HandlerOptions{
-		Level: slog.LevelInfo,
+		Level: level,
 	}
 
 	handler := slog.NewTextHandler(os.Stdout, opts)

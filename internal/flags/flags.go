@@ -20,4 +20,8 @@ const (
 	// Force flags are used to bypass interactive confirmation prompts for destructive operations
 	Force      = "force"
 	ForceShort = "f"
+
+	// Debug flags are used to enable verbose logging
+	Debug      = "debug"
+	DebugShort = "d"
 )

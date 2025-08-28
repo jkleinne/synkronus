@@ -18,6 +18,13 @@ func newSqlCmd() *cobra.Command {
 		Use:   "list",
 		Short: "List SQL resources",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			// Retrieve the app container to access services and configuration if needed
+			app, err := appFromContext(cmd.Context())
+			if err != nil {
+				return err
+			}
+
+			app.Logger.Debug("Executing SQL list command (Placeholder)")
 			fmt.Println("Listing SQL resources...")
 			// TODO: Implement SQL listing functionality
 			return nil
