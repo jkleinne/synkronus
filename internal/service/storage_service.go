@@ -23,6 +23,8 @@ func NewStorageService(providerFactory *factory.Factory, logger *slog.Logger) *S
 	}
 }
 
+// --- Bucket Operations ---
+
 func (s *StorageService) ListAllBuckets(ctx context.Context, providerNames []string) ([]storage.Bucket, error) {
 	if len(providerNames) == 0 {
 		return nil, nil
@@ -70,10 +72,9 @@ func (s *StorageService) ListAllBuckets(ctx context.Context, providerNames []str
 func (s *StorageService) DescribeBucket(ctx context.Context, bucketName, providerName string) (storage.Bucket, error) {
 	s.logger.Debug("Starting DescribeBucket operation", "bucket", bucketName, "provider", providerName)
 
-	client, err := s.providerFactory.GetStorageProvider(ctx, providerName)
+	client, err := s.getStorageClient(ctx, providerName)
 	if err != nil {
-		s.logger.Error("Failed to initialize provider", "provider", providerName, "error", err)
-		return storage.Bucket{}, fmt.Errorf("error initializing provider: %w", err)
+		return storage.Bucket{}, err
 	}
 	defer client.Close()
 
@@ -88,10 +89,9 @@ func (s *StorageService) DescribeBucket(ctx context.Context, bucketName, provide
 func (s *StorageService) CreateBucket(ctx context.Context, bucketName, providerName, location string) error {
 	s.logger.Debug("Starting CreateBucket operation", "bucket", bucketName, "provider", providerName, "location", location)
 
-	client, err := s.providerFactory.GetStorageProvider(ctx, providerName)
+	client, err := s.getStorageClient(ctx, providerName)
 	if err != nil {
-		s.logger.Error("Failed to initialize provider", "provider", providerName, "error", err)
-		return fmt.Errorf("error initializing provider: %w", err)
+		return err
 	}
 	defer client.Close()
 
@@ -106,10 +106,9 @@ func (s *StorageService) CreateBucket(ctx context.Context, bucketName, providerN
 func (s *StorageService) DeleteBucket(ctx context.Context, bucketName, providerName string) error {
 	s.logger.Debug("Starting DeleteBucket operation", "bucket", bucketName, "provider", providerName)
 
-	client, err := s.providerFactory.GetStorageProvider(ctx, providerName)
+	client, err := s.getStorageClient(ctx, providerName)
 	if err != nil {
-		s.logger.Error("Failed to initialize provider", "provider", providerName, "error", err)
-		return fmt.Errorf("error initializing provider: %w", err)
+		return err
 	}
 	defer client.Close()
 
@@ -119,4 +118,50 @@ func (s *StorageService) DeleteBucket(ctx context.Context, bucketName, providerN
 		return err
 	}
 	return nil
+}
+
+// --- Object Operations ---
+
+func (s *StorageService) ListObjects(ctx context.Context, bucketName, providerName, prefix string) (storage.ObjectList, error) {
+	s.logger.Debug("Starting ListObjects operation", "bucket", bucketName, "provider", providerName, "prefix", prefix)
+
+	client, err := s.getStorageClient(ctx, providerName)
+	if err != nil {
+		return storage.ObjectList{}, err
+	}
+	defer client.Close()
+
+	objects, err := client.ListObjects(ctx, bucketName, prefix)
+	if err != nil {
+		s.logger.Error("Failed to list objects", "bucket", bucketName, "provider", providerName, "error", err)
+		return storage.ObjectList{}, err
+	}
+	return objects, nil
+}
+
+func (s *StorageService) DescribeObject(ctx context.Context, bucketName, objectKey, providerName string) (storage.Object, error) {
+	s.logger.Debug("Starting DescribeObject operation", "bucket", bucketName, "object", objectKey, "provider", providerName)
+
+	client, err := s.getStorageClient(ctx, providerName)
+	if err != nil {
+		return storage.Object{}, err
+	}
+	defer client.Close()
+
+	object, err := client.DescribeObject(ctx, bucketName, objectKey)
+	if err != nil {
+		s.logger.Error("Failed to describe object", "bucket", bucketName, "object", objectKey, "provider", providerName, "error", err)
+		return storage.Object{}, err
+	}
+	return object, nil
+}
+
+// Helper to initialize the storage client and handle common error logging
+func (s *StorageService) getStorageClient(ctx context.Context, providerName string) (storage.Storage, error) {
+	client, err := s.providerFactory.GetStorageProvider(ctx, providerName)
+	if err != nil {
+		s.logger.Error("Failed to initialize provider", "provider", providerName, "error", err)
+		return nil, fmt.Errorf("error initializing provider: %w", err)
+	}
+	return client, nil
 }
