@@ -9,11 +9,20 @@ import (
 	"time"
 )
 
+const (
+	// Used to indicate a directory/prefix in the object list
+	directoryMarker = "(DIR)"
+	// Used when a specific timestamp is not available (e.g., S3 object creation time)
+	timeNotAvailable = "N/A"
+)
+
 type StorageFormatter struct{}
 
 func NewStorageFormatter() *StorageFormatter {
 	return &StorageFormatter{}
 }
+
+// --- Bucket Formatters ---
 
 func (f *StorageFormatter) FormatBucketList(buckets []storage.Bucket) string {
 	table := NewTable([]string{"BUCKET NAME", "PROVIDER", "LOCATION", "USAGE", "STORAGE CLASS", "CREATED"})
@@ -41,7 +50,7 @@ func (f *StorageFormatter) FormatBucketDetails(bucket storage.Bucket) string {
 	sb.WriteString(FormatHeaderSection("Bucket: " + bucket.Name))
 	sb.WriteString("\n\n")
 
-	sb.WriteString(f.formatOverviewSection(bucket))
+	sb.WriteString(f.formatBucketOverviewSection(bucket))
 	sb.WriteString(f.formatAccessControlSection(bucket))
 	sb.WriteString(f.formatDataProtectionSection(bucket))
 	sb.WriteString(f.formatLifecycleSection(bucket))
@@ -50,7 +59,7 @@ func (f *StorageFormatter) FormatBucketDetails(bucket storage.Bucket) string {
 	return sb.String()
 }
 
-func (f *StorageFormatter) formatOverviewSection(bucket storage.Bucket) string {
+func (f *StorageFormatter) formatBucketOverviewSection(bucket storage.Bucket) string {
 	var sb strings.Builder
 
 	sb.WriteString(FormatSectionTitle("Overview"))
@@ -211,7 +220,12 @@ func (f *StorageFormatter) formatDataProtectionSection(bucket storage.Bucket) st
 	if bucket.Encryption != nil && bucket.Encryption.KmsKeyName != "" {
 		protectionTable.AddRow([]string{"Encryption (CMEK)", bucket.Encryption.KmsKeyName})
 	} else {
-		protectionTable.AddRow([]string{"Encryption (CMEK)", "Google-managed"})
+		// Default to assuming Google-managed for GCP if not specified
+		defaultEncryption := "Provider-managed"
+		if bucket.Provider == common.GCP {
+			defaultEncryption = "Google-managed"
+		}
+		protectionTable.AddRow([]string{"Encryption (CMEK)", defaultEncryption})
 	}
 
 	if bucket.Versioning != nil {
@@ -290,6 +304,168 @@ func (f *StorageFormatter) formatLabelsSection(bucket storage.Bucket) string {
 		labelsTable.AddRow([]string{k, v})
 	}
 	sb.WriteString(labelsTable.String())
+	sb.WriteString("\n\n")
+
+	return sb.String()
+}
+
+// --- Object Formatters ---
+
+func (f *StorageFormatter) FormatObjectList(list storage.ObjectList) string {
+	var sb strings.Builder
+
+	// Display context information
+	sb.WriteString(fmt.Sprintf("Listing objects in bucket: %s\n", list.BucketName))
+	if list.Prefix != "" {
+		sb.WriteString(fmt.Sprintf("Prefix: %s\n", list.Prefix))
+	}
+	sb.WriteString("\n")
+
+	if len(list.Objects) == 0 && len(list.CommonPrefixes) == 0 {
+		sb.WriteString("No objects or directories found.\n")
+		return sb.String()
+	}
+
+	table := NewTable([]string{"KEY", "SIZE", "STORAGE CLASS", "LAST MODIFIED"})
+
+	// Add directories first
+	for _, prefix := range list.CommonPrefixes {
+		table.AddRow([]string{
+			prefix,
+			directoryMarker,
+			"",
+			"",
+		})
+	}
+
+	// Add objects
+	for _, obj := range list.Objects {
+		table.AddRow([]string{
+			obj.Key,
+			storage.FormatBytes(obj.Size),
+			obj.StorageClass,
+			obj.LastModified.Format(time.RFC3339),
+		})
+	}
+
+	sb.WriteString(table.String())
+	return sb.String()
+}
+
+func (f *StorageFormatter) FormatObjectDetails(object storage.Object) string {
+	var sb strings.Builder
+
+	sb.WriteString(FormatHeaderSection("Object: " + object.Key))
+	sb.WriteString("\n\n")
+
+	sb.WriteString(f.formatObjectOverviewSection(object))
+	sb.WriteString(f.formatObjectHttpHeadersSection(object))
+	sb.WriteString(f.formatObjectMetadataSection(object))
+
+	return sb.String()
+}
+
+func (f *StorageFormatter) formatObjectOverviewSection(object storage.Object) string {
+	var sb strings.Builder
+
+	sb.WriteString(FormatSectionTitle("Overview"))
+	sb.WriteString("\n")
+
+	overviewTable := NewTable([]string{"Parameter", "Value"})
+	overviewTable.AddRow([]string{"Bucket", object.Bucket})
+	overviewTable.AddRow([]string{"Provider", string(object.Provider)})
+	overviewTable.AddRow([]string{"Size", storage.FormatBytes(object.Size)})
+	overviewTable.AddRow([]string{"Storage Class", object.StorageClass})
+
+	// Handle timestamps
+	overviewTable.AddRow([]string{"Last Modified", object.LastModified.Format(time.RFC1123)})
+
+	createdAtStr := timeNotAvailable
+	if !object.CreatedAt.IsZero() {
+		createdAtStr = object.CreatedAt.Format(time.RFC1123)
+	}
+	overviewTable.AddRow([]string{"Created At", createdAtStr})
+
+	// Handle encryption
+	if object.Encryption != nil {
+		encryptionDetails := object.Encryption.KmsKeyName
+		if object.Encryption.Algorithm != "" {
+			encryptionDetails = fmt.Sprintf("%s (%s)", encryptionDetails, object.Encryption.Algorithm)
+		}
+		overviewTable.AddRow([]string{"Encryption", encryptionDetails})
+	} else {
+		overviewTable.AddRow([]string{"Encryption", "N/A"})
+	}
+
+	// Handle checksums/identifiers
+	overviewTable.AddRow([]string{"ETag", object.ETag})
+	if object.MD5Hash != "" {
+		overviewTable.AddRow([]string{"MD5 Hash (Base64)", object.MD5Hash})
+	}
+	if object.Provider == common.GCP {
+		if object.CRC32C != "" {
+			overviewTable.AddRow([]string{"CRC32C (Base64)", object.CRC32C})
+		}
+		overviewTable.AddRow([]string{"Generation", fmt.Sprintf("%d", object.Generation)})
+		overviewTable.AddRow([]string{"Metageneration", fmt.Sprintf("%d", object.Metageneration)})
+	}
+
+	sb.WriteString(overviewTable.String())
+	sb.WriteString("\n\n")
+
+	return sb.String()
+}
+
+func (f *StorageFormatter) formatObjectHttpHeadersSection(object storage.Object) string {
+	// Check if any HTTP headers are set
+	if object.ContentType == "" && object.ContentEncoding == "" && object.ContentLanguage == "" &&
+		object.CacheControl == "" && object.ContentDisposition == "" {
+		return ""
+	}
+
+	var sb strings.Builder
+	sb.WriteString(FormatSectionTitle("HTTP Headers"))
+	sb.WriteString("\n")
+
+	headersTable := NewTable([]string{"Header", "Value"})
+
+	if object.ContentType != "" {
+		headersTable.AddRow([]string{"Content-Type", object.ContentType})
+	}
+	if object.ContentEncoding != "" {
+		headersTable.AddRow([]string{"Content-Encoding", object.ContentEncoding})
+	}
+	if object.ContentLanguage != "" {
+		headersTable.AddRow([]string{"Content-Language", object.ContentLanguage})
+	}
+	if object.CacheControl != "" {
+		headersTable.AddRow([]string{"Cache-Control", object.CacheControl})
+	}
+	if object.ContentDisposition != "" {
+		headersTable.AddRow([]string{"Content-Disposition", object.ContentDisposition})
+	}
+
+	sb.WriteString(headersTable.String())
+	sb.WriteString("\n\n")
+
+	return sb.String()
+}
+
+func (f *StorageFormatter) formatObjectMetadataSection(object storage.Object) string {
+	if len(object.Metadata) == 0 {
+		return ""
+	}
+
+	var sb strings.Builder
+	sb.WriteString(FormatSectionTitle("User-Defined Metadata"))
+	sb.WriteString("\n")
+
+	metadataTable := NewTable([]string{"Key", "Value"})
+	for k, v := range object.Metadata {
+		metadataTable.AddRow([]string{k, v})
+	}
+
+	sb.WriteString(metadataTable.String())
 	sb.WriteString("\n\n")
 
 	return sb.String()
