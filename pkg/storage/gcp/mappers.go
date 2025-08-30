@@ -2,6 +2,7 @@
 package gcp
 
 import (
+	"encoding/base64"
 	"fmt"
 	"synkronus/pkg/storage"
 
@@ -65,13 +66,15 @@ func mapPublicAccessPrevention(pap gcpstorage.PublicAccessPrevention) string {
 	}
 }
 
-func mapEncryption(e *gcpstorage.BucketEncryption) *storage.Encryption {
+// Renamed from mapEncryption for clarity, maps bucket-level settings
+func mapBucketEncryption(e *gcpstorage.BucketEncryption) *storage.Encryption {
 	if e == nil || e.DefaultKMSKeyName == "" {
 		// Empty key name implies Google-managed encryption
 		return nil
 	}
 	return &storage.Encryption{
 		KmsKeyName: e.DefaultKMSKeyName,
+		Algorithm:  "AES256",
 	}
 }
 
@@ -83,4 +86,27 @@ func mapRetentionPolicy(rp *gcpstorage.RetentionPolicy) *storage.RetentionPolicy
 		RetentionPeriod: rp.RetentionPeriod,
 		IsLocked:        rp.IsLocked,
 	}
+}
+
+// Converts the binary MD5 hash provided by GCP SDK into a standard Base64 encoded string
+func formatMD5(hash []byte) string {
+	if len(hash) == 0 {
+		return ""
+	}
+	return base64.StdEncoding.EncodeToString(hash)
+}
+
+// Converts the uint32 CRC32C checksum provided by GCP SDK into a standard Base64 encoded string
+func formatCRC32C(crc32c uint32) string {
+	if crc32c == 0 {
+		return ""
+	}
+	// Convert the uint32 to a 4-byte big-endian slice
+	b := []byte{
+		byte(crc32c >> 24),
+		byte(crc32c >> 16),
+		byte(crc32c >> 8),
+		byte(crc32c),
+	}
+	return base64.StdEncoding.EncodeToString(b)
 }
