@@ -20,6 +20,8 @@ type storageFlags struct {
 	provider      string
 	location      string
 	force         bool
+	bucket        string
+	prefix        string
 }
 
 func newStorageCmd() *cobra.Command {
@@ -27,13 +29,16 @@ func newStorageCmd() *cobra.Command {
 
 	storageCmd := &cobra.Command{
 		Use:   "storage",
-		Short: "Manage storage resources like buckets",
-		Long:  `The storage command allows you to list, describe, create, and delete storage buckets from configured cloud providers.`,
+		Short: "Manage storage resources like buckets and objects",
+		Long:  `The storage command allows you to list, describe, create, and delete storage buckets, as well as list and describe objects within them, from configured cloud providers.`,
 	}
 
-	listCmd := &cobra.Command{
-		Use:   "list",
-		Short: "List storage buckets",
+	// --- Bucket Level Commands ---
+
+	listBucketsCmd := &cobra.Command{
+		Use:     "list-buckets",
+		Aliases: []string{"list"},
+		Short:   "List storage buckets",
 		Long: `Lists all storage buckets. If no flags are provided, it queries all configured providers. 
 Use the --providers flag to specify which providers to query (e.g., --providers gcp,aws).`,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -64,13 +69,14 @@ Use the --providers flag to specify which providers to query (e.g., --providers 
 			return nil
 		},
 	}
-	listCmd.Flags().StringSliceVarP(&cmdFlags.providersList, flags.Providers, flags.ProvidersShort, []string{}, "Specify providers to query (comma-separated). Defaults to all configured providers.")
+	listBucketsCmd.Flags().StringSliceVarP(&cmdFlags.providersList, flags.Providers, flags.ProvidersShort, []string{}, "Specify providers to query (comma-separated). Defaults to all configured providers.")
 
-	describeCmd := &cobra.Command{
-		Use:   "describe [bucket-name]",
-		Short: "Describe a specific storage bucket",
-		Long:  `Provides detailed information about a specific storage bucket. You must specify the bucket name and the --provider flag.`,
-		Args:  cobra.ExactArgs(1),
+	describeBucketCmd := &cobra.Command{
+		Use:     "describe-bucket [bucket-name]",
+		Aliases: []string{"describe"},
+		Short:   "Describe a specific storage bucket",
+		Long:    `Provides detailed information about a specific storage bucket. You must specify the bucket name and the --provider flag.`,
+		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			app, err := appFromContext(cmd.Context())
 			if err != nil {
@@ -89,14 +95,15 @@ Use the --providers flag to specify which providers to query (e.g., --providers 
 			return nil
 		},
 	}
-	describeCmd.Flags().StringVarP(&cmdFlags.provider, flags.Provider, flags.ProviderShort, "", "The provider where the bucket resides (required)")
-	describeCmd.MarkFlagRequired(flags.Provider)
+	describeBucketCmd.Flags().StringVarP(&cmdFlags.provider, flags.Provider, flags.ProviderShort, "", "The provider where the bucket resides (required)")
+	describeBucketCmd.MarkFlagRequired(flags.Provider)
 
-	createCmd := &cobra.Command{
-		Use:   "create [bucket-name]",
-		Short: "Create a new storage bucket",
-		Long:  `Creates a new storage bucket on the specified provider. You must specify the bucket name, the --provider flag, and the --location flag.`,
-		Args:  cobra.ExactArgs(1),
+	createBucketCmd := &cobra.Command{
+		Use:     "create-bucket [bucket-name]",
+		Aliases: []string{"create"},
+		Short:   "Create a new storage bucket",
+		Long:    `Creates a new storage bucket on the specified provider. You must specify the bucket name, the --provider flag, and the --location flag.`,
+		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			app, err := appFromContext(cmd.Context())
 			if err != nil {
@@ -114,14 +121,15 @@ Use the --providers flag to specify which providers to query (e.g., --providers 
 			return nil
 		},
 	}
-	createCmd.Flags().StringVarP(&cmdFlags.provider, flags.Provider, flags.ProviderShort, "", "The provider to create the bucket on (required)")
-	createCmd.MarkFlagRequired(flags.Provider)
-	createCmd.Flags().StringVarP(&cmdFlags.location, flags.Location, flags.LocationShort, "", "The location/region to create the bucket in (required)")
-	createCmd.MarkFlagRequired(flags.Location)
+	createBucketCmd.Flags().StringVarP(&cmdFlags.provider, flags.Provider, flags.ProviderShort, "", "The provider to create the bucket on (required)")
+	createBucketCmd.MarkFlagRequired(flags.Provider)
+	createBucketCmd.Flags().StringVarP(&cmdFlags.location, flags.Location, flags.LocationShort, "", "The location/region to create the bucket in (required)")
+	createBucketCmd.MarkFlagRequired(flags.Location)
 
-	deleteCmd := &cobra.Command{
-		Use:   "delete [bucket-name]",
-		Short: "Delete a storage bucket",
+	deleteBucketCmd := &cobra.Command{
+		Use:     "delete-bucket [bucket-name]",
+		Aliases: []string{"delete"},
+		Short:   "Delete a storage bucket",
 		Long: `Deletes a storage bucket on the specified provider. This operation is destructive. 
 Confirmation is required by typing the bucket name, unless the --force flag is used.`,
 		Args: cobra.ExactArgs(1),
@@ -156,11 +164,79 @@ Confirmation is required by typing the bucket name, unless the --force flag is u
 			return nil
 		},
 	}
-	deleteCmd.Flags().StringVarP(&cmdFlags.provider, flags.Provider, flags.ProviderShort, "", "The provider where the bucket resides (required)")
-	deleteCmd.MarkFlagRequired(flags.Provider)
-	deleteCmd.Flags().BoolVarP(&cmdFlags.force, flags.Force, flags.ForceShort, false, "If set, bypass the interactive confirmation prompt and proceed with deletion")
+	deleteBucketCmd.Flags().StringVarP(&cmdFlags.provider, flags.Provider, flags.ProviderShort, "", "The provider where the bucket resides (required)")
+	deleteBucketCmd.MarkFlagRequired(flags.Provider)
+	deleteBucketCmd.Flags().BoolVarP(&cmdFlags.force, flags.Force, flags.ForceShort, false, "If set, bypass the interactive confirmation prompt and proceed with deletion")
 
-	storageCmd.AddCommand(listCmd, describeCmd, createCmd, deleteCmd)
+	// --- Object Level Commands ---
+
+	listObjectsCmd := &cobra.Command{
+		Use:   "list-objects",
+		Short: "List objects within a storage bucket",
+		Long: `Lists objects (files) and common prefixes (directories) within a specified bucket.
+Requires the --bucket and --provider flags. Use --prefix to filter the results (e.g., list contents of a specific directory).`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			app, err := appFromContext(cmd.Context())
+			if err != nil {
+				return err
+			}
+
+			bucketName := cmdFlags.bucket
+			providerName := cmdFlags.provider
+			prefix := cmdFlags.prefix
+
+			objectList, err := app.StorageService.ListObjects(cmd.Context(), bucketName, providerName, prefix)
+			if err != nil {
+				return fmt.Errorf("error listing objects in bucket '%s' on %s: %w", bucketName, providerName, err)
+			}
+
+			fmt.Println(app.StorageFormatter.FormatObjectList(objectList))
+			return nil
+		},
+	}
+	listObjectsCmd.Flags().StringVarP(&cmdFlags.provider, flags.Provider, flags.ProviderShort, "", "The provider where the bucket resides (required)")
+	listObjectsCmd.MarkFlagRequired(flags.Provider)
+	listObjectsCmd.Flags().StringVarP(&cmdFlags.bucket, flags.Bucket, flags.BucketShort, "", "The name of the bucket to list objects from (required)")
+	listObjectsCmd.MarkFlagRequired(flags.Bucket)
+	listObjectsCmd.Flags().StringVar(&cmdFlags.prefix, flags.Prefix, "", "Filter results to objects beginning with this prefix (optional)")
+
+	describeObjectCmd := &cobra.Command{
+		Use:   "describe-object [object-key]",
+		Short: "Describe a specific storage object",
+		Long:  `Provides detailed metadata about a specific object within a bucket. Requires the object key as an argument, and the --bucket and --provider flags.`,
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			app, err := appFromContext(cmd.Context())
+			if err != nil {
+				return err
+			}
+
+			objectKey := args[0]
+			bucketName := cmdFlags.bucket
+			providerName := cmdFlags.provider
+
+			objectDetails, err := app.StorageService.DescribeObject(cmd.Context(), bucketName, objectKey, providerName)
+			if err != nil {
+				return fmt.Errorf("error describing object '%s' in bucket '%s' on %s: %w", objectKey, bucketName, providerName, err)
+			}
+
+			fmt.Println(app.StorageFormatter.FormatObjectDetails(objectDetails))
+			return nil
+		},
+	}
+	describeObjectCmd.Flags().StringVarP(&cmdFlags.provider, flags.Provider, flags.ProviderShort, "", "The provider where the object resides (required)")
+	describeObjectCmd.MarkFlagRequired(flags.Provider)
+	describeObjectCmd.Flags().StringVarP(&cmdFlags.bucket, flags.Bucket, flags.BucketShort, "", "The name of the bucket containing the object (required)")
+	describeObjectCmd.MarkFlagRequired(flags.Bucket)
+
+	storageCmd.AddCommand(
+		listBucketsCmd,
+		describeBucketCmd,
+		createBucketCmd,
+		deleteBucketCmd,
+		listObjectsCmd,
+		describeObjectCmd,
+	)
 	return storageCmd
 }
 

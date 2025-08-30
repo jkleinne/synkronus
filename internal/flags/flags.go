@@ -17,6 +17,13 @@ const (
 	Location      = "location"
 	LocationShort = "l"
 
+	// Bucket flags are used to specify the target bucket for object-level operations
+	Bucket      = "bucket"
+	BucketShort = "b"
+
+	// Prefix flags are used to filter object listings
+	Prefix = "prefix"
+
 	// Force flags are used to bypass interactive confirmation prompts for destructive operations
 	Force      = "force"
 	ForceShort = "f"

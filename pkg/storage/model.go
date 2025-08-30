@@ -33,6 +33,45 @@ type Bucket struct {
 	RetentionPolicy          *RetentionPolicy
 }
 
+// Represents the results of a ListObjects operation using delimiters (simulating directories)
+type ObjectList struct {
+	BucketName     string
+	Prefix         string
+	Objects        []Object
+	CommonPrefixes []string
+}
+
+// Represents a single object (file) within a storage bucket
+type Object struct {
+	Key          string
+	Bucket       string
+	Provider     common.Provider
+	Size         int64
+	StorageClass string
+	LastModified time.Time
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
+	ETag         string
+
+	ContentType        string
+	ContentEncoding    string
+	ContentLanguage    string
+	CacheControl       string
+	ContentDisposition string
+
+	// Checksums (Base64 encoded strings)
+	MD5Hash string
+	CRC32C  string // GCP specific
+
+	// Versioning information
+	Generation     int64 // GCP specific
+	Metageneration int64 // GCP specific
+
+	Encryption *Encryption
+
+	Metadata map[string]string
+}
+
 type Autoclass struct {
 	Enabled bool
 }
@@ -55,7 +94,10 @@ type UniformBucketLevelAccess struct {
 }
 
 type Encryption struct {
+	// The name or ARN of the KMS key used for encryption (CMEK)
 	KmsKeyName string
+	// The algorithm used (e.g., AES256)
+	Algorithm string
 }
 
 type RetentionPolicy struct {

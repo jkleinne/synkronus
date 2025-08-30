@@ -114,7 +114,7 @@ func (g *GCPStorage) DescribeBucket(ctx context.Context, bucketName string) (sto
 		SoftDeletePolicy:         mapSoftDeletePolicy(attrs.SoftDeletePolicy),
 		UniformBucketLevelAccess: &storage.UniformBucketLevelAccess{Enabled: attrs.UniformBucketLevelAccess.Enabled},
 		PublicAccessPrevention:   mapPublicAccessPrevention(attrs.PublicAccessPrevention),
-		Encryption:               mapEncryption(attrs.Encryption),
+		Encryption:               mapBucketEncryption(attrs.Encryption),
 		RetentionPolicy:          mapRetentionPolicy(attrs.RetentionPolicy),
 	}
 

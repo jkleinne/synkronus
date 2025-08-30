@@ -97,6 +97,16 @@ func (s *AWSStorage) DeleteBucket(ctx context.Context, bucketName string) error 
 	return fmt.Errorf("AWS DeleteBucket is not yet implemented")
 }
 
+func (s *AWSStorage) ListObjects(ctx context.Context, bucketName string, prefix string) (storage.ObjectList, error) {
+	s.logger.Debug("Listing AWS objects (placeholder)", "bucket", bucketName, "prefix", prefix)
+	return storage.ObjectList{}, fmt.Errorf("AWS ListObjects is not yet implemented")
+}
+
+func (s *AWSStorage) DescribeObject(ctx context.Context, bucketName string, objectKey string) (storage.Object, error) {
+	s.logger.Debug("Describing AWS object (placeholder)", "bucket", bucketName, "objectKey", objectKey)
+	return storage.Object{}, fmt.Errorf("AWS DescribeObject is not yet implemented")
+}
+
 func (s *AWSStorage) Close() error {
 	// Nothing to close in the placeholder
 	return nil
