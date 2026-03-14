@@ -26,7 +26,9 @@ type appContainer struct {
 	ConfigManager    *config.ConfigManager
 	ProviderFactory  *factory.Factory
 	StorageService   *service.StorageService
+	SqlService       *service.SqlService
 	StorageFormatter *formatter.StorageFormatter
+	SqlFormatter     *formatter.SqlFormatter
 	Prompter         prompt.Prompter
 	Logger           *slog.Logger
 }
@@ -54,7 +56,9 @@ func newApp(debugMode bool) (*appContainer, error) {
 	// 3. Initialize factories and services
 	providerFactory := factory.NewFactory(cfg, log)
 	storageService := service.NewStorageService(providerFactory, log)
+	sqlService := service.NewSqlService(providerFactory, log)
 	storageFormatter := formatter.NewStorageFormatter()
+	sqlFormatter := formatter.NewSqlFormatter()
 
 	// 4. Initialize UI components
 	prompter := prompt.NewStandardPrompter(os.Stdin, os.Stdout)
@@ -64,7 +68,9 @@ func newApp(debugMode bool) (*appContainer, error) {
 		ConfigManager:    cfgManager,
 		ProviderFactory:  providerFactory,
 		StorageService:   storageService,
+		SqlService:       sqlService,
 		StorageFormatter: storageFormatter,
+		SqlFormatter:     sqlFormatter,
 		Prompter:         prompter,
 		Logger:           log,
 	}, nil
