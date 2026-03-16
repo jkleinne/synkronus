@@ -4,6 +4,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 	"synkronus/internal/flags"
 	"synkronus/internal/provider/factory"
@@ -53,8 +54,11 @@ Use the --providers flag to specify which providers to query (e.g., --providers 
 			}
 
 			allBuckets, err := app.StorageService.ListAllBuckets(cmd.Context(), providersToQuery)
-			if err != nil {
+			if err != nil && len(allBuckets) == 0 {
 				return err
+			}
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Warning: some providers failed: %v\n", err)
 			}
 
 			if len(allBuckets) > 0 {

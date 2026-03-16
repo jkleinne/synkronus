@@ -3,6 +3,7 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"strings"
 	"synkronus/internal/flags"
 	"synkronus/internal/provider/factory"
@@ -45,8 +46,11 @@ Use the --providers flag to specify which providers to query (e.g., --providers 
 			}
 
 			allInstances, err := app.SqlService.ListAllInstances(cmd.Context(), providersToQuery)
-			if err != nil {
+			if err != nil && len(allInstances) == 0 {
 				return err
+			}
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Warning: some SQL providers failed: %v\n", err)
 			}
 
 			if len(allInstances) > 0 {

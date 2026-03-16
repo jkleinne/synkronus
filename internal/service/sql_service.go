@@ -3,6 +3,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"sync"
@@ -32,6 +33,7 @@ func (s *SqlService) ListAllInstances(ctx context.Context, providerNames []strin
 	s.logger.Debug("Starting ListAllInstances operation", "providers", providerNames)
 
 	var allInstances []sql.Instance
+	var errs []error
 	var mu sync.Mutex
 	var wg sync.WaitGroup
 
@@ -43,6 +45,9 @@ func (s *SqlService) ListAllInstances(ctx context.Context, providerNames []strin
 			client, err := s.providerFactory.GetSqlProvider(ctx, pName)
 			if err != nil {
 				s.logger.Error("Failed to initialize SQL provider client", "provider", pName, "error", err)
+				mu.Lock()
+				errs = append(errs, fmt.Errorf("provider %s: %w", pName, err))
+				mu.Unlock()
 				return
 			}
 			defer client.Close()
@@ -50,10 +55,12 @@ func (s *SqlService) ListAllInstances(ctx context.Context, providerNames []strin
 			instances, err := client.ListInstances(ctx)
 			if err != nil {
 				s.logger.Error("Failed to list SQL instances from provider", "provider", pName, "error", err)
+				mu.Lock()
+				errs = append(errs, fmt.Errorf("provider %s: %w", pName, err))
+				mu.Unlock()
 				return
 			}
 
-			// Safely append successful results
 			mu.Lock()
 			allInstances = append(allInstances, instances...)
 			mu.Unlock()
@@ -64,8 +71,7 @@ func (s *SqlService) ListAllInstances(ctx context.Context, providerNames []strin
 
 	wg.Wait()
 
-	// The operation itself succeeded, even if some providers failed
-	return allInstances, nil
+	return allInstances, errors.Join(errs...)
 }
 
 // DescribeInstance returns detailed information about a specific SQL instance from a single provider
