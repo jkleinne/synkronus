@@ -15,9 +15,9 @@ import (
 )
 
 func init() {
-	registry.RegisterSqlProvider("gcp", registry.SqlProviderRegistration{
-		ConfigCheck:    isConfigured,
-		SqlInitializer: initialize,
+	registry.RegisterSqlProvider("gcp", registry.Registration[sql.SQL]{
+		ConfigCheck: isConfigured,
+		Initializer: initialize,
 	})
 }
 

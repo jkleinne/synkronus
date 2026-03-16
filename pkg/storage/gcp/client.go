@@ -17,7 +17,7 @@ import (
 )
 
 func init() {
-	registry.RegisterProvider("gcp", registry.ProviderRegistration{
+	registry.RegisterProvider("gcp", registry.Registration[storage.Storage]{
 		ConfigCheck: isConfigured,
 		Initializer: initialize,
 	})

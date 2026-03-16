@@ -27,30 +27,23 @@ func NewFactory(cfg *config.Config, logger *slog.Logger) *Factory {
 
 // Returns a list of providers that are registered and configured
 func (f *Factory) GetConfiguredProviders() []string {
-	var configuredProviders []string
-	allRegistrations := registry.GetAllRegistrations()
-
-	for name, registration := range allRegistrations {
-		if registration.ConfigCheck(f.cfg) {
-			configuredProviders = append(configuredProviders, name)
-		}
-	}
-	sort.Strings(configuredProviders)
-	return configuredProviders
+	return getConfigured(registry.GetAllRegistrations(), f.cfg)
 }
 
 // Returns a list of SQL providers that are registered and configured
 func (f *Factory) GetConfiguredSqlProviders() []string {
-	var configuredProviders []string
-	allRegistrations := registry.GetAllSqlRegistrations()
+	return getConfigured(registry.GetAllSqlRegistrations(), f.cfg)
+}
 
-	for name, registration := range allRegistrations {
-		if registration.ConfigCheck(f.cfg) {
-			configuredProviders = append(configuredProviders, name)
+func getConfigured[T any](regs map[string]registry.Registration[T], cfg *config.Config) []string {
+	var configured []string
+	for name, reg := range regs {
+		if reg.ConfigCheck(cfg) {
+			configured = append(configured, name)
 		}
 	}
-	sort.Strings(configuredProviders)
-	return configuredProviders
+	sort.Strings(configured)
+	return configured
 }
 
 // Checks if a specific provider is registered and configured
@@ -86,7 +79,6 @@ func (f *Factory) GetStorageProvider(ctx context.Context, providerName string) (
 		return nil, fmt.Errorf("provider '%s' is not configured. Use 'synkronus config set %s.<key> <value>' (e.g., 'gcp.project' or 'aws.region')", normalizedName, normalizedName)
 	}
 
-	// Dynamically initialize the provider using the registered initializer function
 	client, err := registration.Initializer(ctx, f.cfg, providerLogger)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize provider %s: %w", normalizedName, err)
@@ -110,8 +102,7 @@ func (f *Factory) GetSqlProvider(ctx context.Context, providerName string) (sql.
 		return nil, fmt.Errorf("SQL provider '%s' is not configured. Use 'synkronus config set %s.<key> <value>' (e.g., 'gcp.project')", normalizedName, normalizedName)
 	}
 
-	// Dynamically initialize the SQL provider using the registered initializer function
-	client, err := registration.SqlInitializer(ctx, f.cfg, providerLogger)
+	client, err := registration.Initializer(ctx, f.cfg, providerLogger)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize SQL provider %s: %w", normalizedName, err)
 	}

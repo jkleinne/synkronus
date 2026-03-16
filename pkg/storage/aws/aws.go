@@ -12,7 +12,7 @@ import (
 )
 
 func init() {
-	registry.RegisterProvider("aws", registry.ProviderRegistration{
+	registry.RegisterProvider("aws", registry.Registration[storage.Storage]{
 		ConfigCheck: isConfigured,
 		Initializer: initialize,
 	})

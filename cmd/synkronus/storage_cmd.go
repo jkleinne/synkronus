@@ -7,7 +7,6 @@ import (
 	"os"
 	"strings"
 	"synkronus/internal/flags"
-	"synkronus/internal/provider/factory"
 	"synkronus/internal/provider/registry"
 
 	"github.com/spf13/cobra"
@@ -48,7 +47,14 @@ Use the --providers flag to specify which providers to query (e.g., --providers 
 				return err
 			}
 
-			providersToQuery, err := resolveProvidersForList(cmdFlags.providersList, app.ProviderFactory)
+			providersToQuery, err := resolveProviders(
+				cmdFlags.providersList,
+				registry.IsSupported,
+				app.ProviderFactory.IsConfigured,
+				app.ProviderFactory.GetConfiguredProviders,
+				registry.GetSupportedProviders,
+				"storage",
+			)
 			if err != nil {
 				return err
 			}
@@ -244,37 +250,3 @@ Requires the --bucket and --provider flags. Use --prefix to filter the results (
 	return storageCmd
 }
 
-func resolveProvidersForList(requestedProviders []string, factory *factory.Factory) ([]string, error) {
-	if len(requestedProviders) == 0 {
-		return factory.GetConfiguredProviders(), nil
-	}
-
-	var validatedProviders []string
-	var invalidProviders []string
-	seen := make(map[string]bool)
-
-	for _, p := range requestedProviders {
-		p = strings.ToLower(strings.TrimSpace(p))
-
-		if seen[p] {
-			continue
-		}
-		seen[p] = true
-
-		if registry.IsSupported(p) {
-			if factory.IsConfigured(p) {
-				validatedProviders = append(validatedProviders, p)
-			} else {
-				return nil, fmt.Errorf("provider '%s' was requested but is not configured. Use 'synkronus config set %s.<key> <value>'", p, p)
-			}
-		} else {
-			invalidProviders = append(invalidProviders, p)
-		}
-	}
-
-	if len(invalidProviders) > 0 {
-		return nil, fmt.Errorf("unsupported providers requested: %v. Supported providers are: %v", invalidProviders, registry.GetSupportedProviders())
-	}
-
-	return validatedProviders, nil
-}
