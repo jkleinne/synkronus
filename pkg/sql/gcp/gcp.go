@@ -15,9 +15,9 @@ import (
 )
 
 func init() {
-	registry.RegisterSqlProvider("gcp", registry.SqlProviderRegistration{
-		ConfigCheck:    isConfigured,
-		SqlInitializer: initialize,
+	registry.RegisterSqlProvider("gcp", registry.Registration[sql.SQL]{
+		ConfigCheck: isConfigured,
+		Initializer: initialize,
 	})
 }
 
@@ -102,14 +102,12 @@ func mapInstance(dbInstance *sqladmin.DatabaseInstance, projectID string) sql.In
 		State:           dbInstance.State,
 		Project:         projectID,
 		ConnectionName:  dbInstance.ConnectionName,
-		Labels:          dbInstance.Settings.UserLabels,
 	}
 
-	// Map tier from settings
+	// Map fields from settings (may be nil for deleted or failed instances)
 	if dbInstance.Settings != nil {
+		instance.Labels = dbInstance.Settings.UserLabels
 		instance.Tier = dbInstance.Settings.Tier
-
-		// Map storage size
 		instance.StorageSizeGB = dbInstance.Settings.DataDiskSizeGb
 	}
 

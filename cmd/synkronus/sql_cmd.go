@@ -3,9 +3,9 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"strings"
 	"synkronus/internal/flags"
-	"synkronus/internal/provider/factory"
 	"synkronus/internal/provider/registry"
 
 	"github.com/spf13/cobra"
@@ -39,14 +39,24 @@ Use the --providers flag to specify which providers to query (e.g., --providers 
 				return err
 			}
 
-			providersToQuery, err := resolveSqlProvidersForList(cmdFlags.providersList, app.ProviderFactory)
+			providersToQuery, err := resolveProviders(
+				cmdFlags.providersList,
+				registry.IsSqlSupported,
+				app.ProviderFactory.IsSqlConfigured,
+				app.ProviderFactory.GetConfiguredSqlProviders,
+				registry.GetSupportedSqlProviders,
+				"SQL",
+			)
 			if err != nil {
 				return err
 			}
 
 			allInstances, err := app.SqlService.ListAllInstances(cmd.Context(), providersToQuery)
-			if err != nil {
+			if err != nil && len(allInstances) == 0 {
 				return err
+			}
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Warning: some SQL providers failed: %v\n", err)
 			}
 
 			if len(allInstances) > 0 {
@@ -94,38 +104,3 @@ Use the --providers flag to specify which providers to query (e.g., --providers 
 	return sqlCmd
 }
 
-// resolveSqlProvidersForList validates and resolves the list of SQL providers to query
-func resolveSqlProvidersForList(requestedProviders []string, f *factory.Factory) ([]string, error) {
-	if len(requestedProviders) == 0 {
-		return f.GetConfiguredSqlProviders(), nil
-	}
-
-	var validatedProviders []string
-	var invalidProviders []string
-	seen := make(map[string]bool)
-
-	for _, p := range requestedProviders {
-		p = strings.ToLower(strings.TrimSpace(p))
-
-		if seen[p] {
-			continue
-		}
-		seen[p] = true
-
-		if registry.IsSqlSupported(p) {
-			if f.IsSqlConfigured(p) {
-				validatedProviders = append(validatedProviders, p)
-			} else {
-				return nil, fmt.Errorf("SQL provider '%s' was requested but is not configured. Use 'synkronus config set %s.<key> <value>'", p, p)
-			}
-		} else {
-			invalidProviders = append(invalidProviders, p)
-		}
-	}
-
-	if len(invalidProviders) > 0 {
-		return nil, fmt.Errorf("unsupported SQL providers requested: %v. Supported SQL providers are: %v", invalidProviders, registry.GetSupportedSqlProviders())
-	}
-
-	return validatedProviders, nil
-}

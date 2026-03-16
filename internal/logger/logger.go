@@ -11,7 +11,7 @@ func NewLogger(level slog.Level) *slog.Logger {
 		Level: level,
 	}
 
-	handler := slog.NewTextHandler(os.Stdout, opts)
+	handler := slog.NewTextHandler(os.Stderr, opts)
 
 	logger := slog.New(handler)
 

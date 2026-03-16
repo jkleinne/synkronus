@@ -3,18 +3,21 @@ package gcp
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
+	"sync"
 	"synkronus/internal/config"
 	"synkronus/internal/provider/registry"
 	"synkronus/pkg/common"
 	"synkronus/pkg/storage"
 
+	monitoring "cloud.google.com/go/monitoring/apiv3/v2"
 	gcpstorage "cloud.google.com/go/storage"
 )
 
 func init() {
-	registry.RegisterProvider("gcp", registry.ProviderRegistration{
+	registry.RegisterProvider("gcp", registry.Registration[storage.Storage]{
 		ConfigCheck: isConfigured,
 		Initializer: initialize,
 	})
@@ -34,9 +37,12 @@ func initialize(ctx context.Context, cfg *config.Config, logger *slog.Logger) (s
 }
 
 type GCPStorage struct {
-	client    *gcpstorage.Client
-	projectID string
-	logger    *slog.Logger
+	client           *gcpstorage.Client
+	projectID        string
+	logger           *slog.Logger
+	monitoringClient *monitoring.MetricClient
+	monitoringOnce   sync.Once
+	monitoringErr    error
 }
 
 var _ storage.Storage = (*GCPStorage)(nil)
@@ -58,9 +64,20 @@ func (g *GCPStorage) ProviderName() common.Provider {
 	return common.GCP
 }
 
+func (g *GCPStorage) getMonitoringClient(ctx context.Context) (*monitoring.MetricClient, error) {
+	g.monitoringOnce.Do(func() {
+		g.monitoringClient, g.monitoringErr = monitoring.NewMetricClient(ctx)
+	})
+	return g.monitoringClient, g.monitoringErr
+}
+
 func (g *GCPStorage) Close() error {
+	var storageErr, monitoringErr error
 	if g.client != nil {
-		return g.client.Close()
+		storageErr = g.client.Close()
 	}
-	return nil
+	if g.monitoringClient != nil {
+		monitoringErr = g.monitoringClient.Close()
+	}
+	return errors.Join(storageErr, monitoringErr)
 }

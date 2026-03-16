@@ -9,11 +9,10 @@ import (
 	"synkronus/internal/provider/registry"
 	"synkronus/pkg/common"
 	"synkronus/pkg/storage"
-	"time"
 )
 
 func init() {
-	registry.RegisterProvider("aws", registry.ProviderRegistration{
+	registry.RegisterProvider("aws", registry.Registration[storage.Storage]{
 		ConfigCheck: isConfigured,
 		Initializer: initialize,
 	})
@@ -51,42 +50,11 @@ func (s *AWSStorage) ProviderName() common.Provider {
 }
 
 func (s *AWSStorage) ListBuckets(ctx context.Context) ([]storage.Bucket, error) {
-	s.logger.Debug("Listing AWS buckets (placeholder)")
-	// TODO: Implement actual AWS S3 ListBuckets API call and CloudWatch metrics retrieval
-	// Placeholder implementation updated with structured data
-	return []storage.Bucket{
-		{
-			Name:         "example-bucket-1",
-			Provider:     common.AWS,
-			Location:     s.region,
-			StorageClass: "STANDARD",
-			CreatedAt:    time.Date(2025, 1, 10, 8, 15, 0, 0, time.UTC),
-			UsageBytes:   1024 * 1024 * 500, // 500MB placeholder
-		},
-		{
-			Name:         "example-bucket-2",
-			Provider:     common.AWS,
-			Location:     s.region,
-			StorageClass: "GLACIER",
-			CreatedAt:    time.Date(2024, 5, 20, 14, 0, 0, 0, time.UTC),
-			UsageBytes:   -1, // Unknown usage
-		},
-	}, nil
+	return nil, fmt.Errorf("AWS ListBuckets is not yet implemented")
 }
 
 func (s *AWSStorage) DescribeBucket(ctx context.Context, bucketName string) (storage.Bucket, error) {
-	s.logger.Debug("Describing AWS bucket (placeholder)", "bucket", bucketName)
-
-	fmt.Printf("Fetching details for AWS S3 bucket: %s in region %s\n", bucketName, s.region)
-
-	return storage.Bucket{
-		Name:         bucketName,
-		Provider:     common.AWS,
-		Location:     s.region,
-		StorageClass: "STANDARD",
-		CreatedAt:    time.Date(2025, 1, 10, 8, 15, 0, 0, time.UTC),
-		UsageBytes:   1024 * 1024 * 500,
-	}, nil
+	return storage.Bucket{}, fmt.Errorf("AWS DescribeBucket is not yet implemented")
 }
 
 func (s *AWSStorage) CreateBucket(ctx context.Context, bucketName string, location string) error {
