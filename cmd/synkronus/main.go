@@ -2,9 +2,9 @@
 package main
 
 import (
-	// Explicitly import provider implementations to ensure their init() functions run and they register themselves
-	_ "synkronus/pkg/storage/aws"
-	_ "synkronus/pkg/storage/gcp"
+	// Explicitly import the provider registration package to ensure all provider init() functions run
+	// and they register themselves (both storage and SQL providers)
+	_ "synkronus/internal/provider"
 )
 
 func main() {
