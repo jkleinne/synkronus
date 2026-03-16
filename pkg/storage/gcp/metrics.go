@@ -8,7 +8,6 @@ import (
 	"math"
 	"time"
 
-	monitoring "cloud.google.com/go/monitoring/apiv3/v2"
 	monitoringpb "cloud.google.com/go/monitoring/apiv3/v2/monitoringpb"
 	"google.golang.org/api/iterator"
 	"google.golang.org/protobuf/types/known/durationpb"
@@ -23,11 +22,10 @@ var ErrMetricsNotFound = errors.New("usage metrics not found in the monitoring w
 
 func (g *GCPStorage) getAllBucketUsages(ctx context.Context) (map[string]int64, error) {
 	g.logger.Debug("Fetching GCP bucket usage metrics via Monitoring API (Aggregated)")
-	client, err := monitoring.NewMetricClient(ctx)
+	client, err := g.getMonitoringClient(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create monitoring client: %w", err)
 	}
-	defer client.Close()
 
 	endTime := time.Now()
 	startTime := endTime.Add(-metricTimeWindow)
@@ -78,11 +76,10 @@ func (g *GCPStorage) getAllBucketUsages(ctx context.Context) (map[string]int64, 
 
 func (g *GCPStorage) getSingleBucketUsage(ctx context.Context, bucketName string) (int64, error) {
 	g.logger.Debug("Fetching single GCP bucket usage metric via Monitoring API (Aggregated)", "bucket", bucketName)
-	client, err := monitoring.NewMetricClient(ctx)
+	client, err := g.getMonitoringClient(ctx)
 	if err != nil {
 		return -1, fmt.Errorf("failed to create monitoring client: %w", err)
 	}
-	defer client.Close()
 
 	endTime := time.Now()
 	startTime := endTime.Add(-metricTimeWindow)
