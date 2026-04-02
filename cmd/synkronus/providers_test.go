@@ -83,3 +83,28 @@ func TestResolve_CaseInsensitive(t *testing.T) {
 		t.Errorf("expected [gcp], got %v", result)
 	}
 }
+
+func TestResolve_EmptyStringProvider(t *testing.T) {
+	r := newTestResolver()
+	_, err := r.Resolve([]string{""})
+	if err == nil {
+		t.Fatal("expected error for empty string provider")
+	}
+}
+
+func TestResolve_AllConfiguredWhenNoneConfigured(t *testing.T) {
+	r := &ProviderResolver{
+		IsSupported:   func(name string) bool { return false },
+		IsConfigured:  func(name string) bool { return false },
+		GetConfigured: func() []string { return []string{} },
+		GetSupported:  func() []string { return []string{} },
+		Label:         "storage",
+	}
+	result, err := r.Resolve(nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(result) != 0 {
+		t.Errorf("expected empty result, got %v", result)
+	}
+}

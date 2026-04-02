@@ -92,3 +92,50 @@ func TestMapInstance_WithSettings(t *testing.T) {
 		t.Errorf("Labels[env]: got %q, want %q", instance.Labels["env"], "prod")
 	}
 }
+
+func TestMapInstance_NoIpAddresses(t *testing.T) {
+	dbInstance := &sqladmin.DatabaseInstance{
+		Name:        "no-ip",
+		IpAddresses: nil,
+	}
+	instance := mapInstance(dbInstance, "proj")
+	if instance.PrimaryAddress != "" {
+		t.Errorf("expected empty PrimaryAddress, got %q", instance.PrimaryAddress)
+	}
+}
+
+func TestMapInstance_MultipleIpAddresses(t *testing.T) {
+	dbInstance := &sqladmin.DatabaseInstance{
+		Name: "multi-ip",
+		IpAddresses: []*sqladmin.IpMapping{
+			{IpAddress: "10.0.0.1"},
+			{IpAddress: "10.0.0.2"},
+		},
+	}
+	instance := mapInstance(dbInstance, "proj")
+	if instance.PrimaryAddress != "10.0.0.1" {
+		t.Errorf("expected first IP '10.0.0.1', got %q", instance.PrimaryAddress)
+	}
+}
+
+func TestMapInstance_InvalidCreateTime(t *testing.T) {
+	dbInstance := &sqladmin.DatabaseInstance{
+		Name:       "bad-time",
+		CreateTime: "not-a-timestamp",
+	}
+	instance := mapInstance(dbInstance, "proj")
+	if !instance.CreatedAt.IsZero() {
+		t.Errorf("expected zero CreatedAt for invalid timestamp, got %v", instance.CreatedAt)
+	}
+}
+
+func TestMapInstance_EmptyCreateTime(t *testing.T) {
+	dbInstance := &sqladmin.DatabaseInstance{
+		Name:       "no-time",
+		CreateTime: "",
+	}
+	instance := mapInstance(dbInstance, "proj")
+	if !instance.CreatedAt.IsZero() {
+		t.Errorf("expected zero CreatedAt for empty string, got %v", instance.CreatedAt)
+	}
+}

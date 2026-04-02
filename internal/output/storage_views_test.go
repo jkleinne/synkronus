@@ -237,3 +237,156 @@ func TestObjectDetailView_RenderTable(t *testing.T) {
 		}
 	}
 }
+
+func TestBucketDetailView_UBLADisabled_ShowsACLs(t *testing.T) {
+	bucket := storage.Bucket{
+		Name:                     "acl-bucket",
+		Provider:                 domain.GCP,
+		Location:                 "US",
+		StorageClass:             "STANDARD",
+		CreatedAt:                time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
+		UpdatedAt:                time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
+		UniformBucketLevelAccess: &storage.UniformBucketLevelAccess{Enabled: false},
+		PublicAccessPrevention:   "inherited",
+		ACLs: []storage.ACLRule{
+			{Entity: "user:admin@example.com", Role: "OWNER"},
+			{Entity: "allUsers", Role: "READER"},
+		},
+	}
+	view := BucketDetailView{bucket}
+	result := view.RenderTable()
+
+	if !strings.Contains(result, "Fine-grained") {
+		t.Errorf("expected UBLA disabled to show fine-grained text, got:\n%s", result)
+	}
+	if !strings.Contains(result, "user:admin@example.com") {
+		t.Errorf("expected ACL entity in output, got:\n%s", result)
+	}
+	if !strings.Contains(result, "allUsers") {
+		t.Errorf("expected allUsers ACL in output, got:\n%s", result)
+	}
+}
+
+func TestBucketDetailView_NilIAMPolicy(t *testing.T) {
+	bucket := storage.Bucket{
+		Name:         "no-iam-bucket",
+		Provider:     domain.GCP,
+		Location:     "US",
+		StorageClass: "STANDARD",
+		CreatedAt:    time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
+		UpdatedAt:    time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
+		IAMPolicy:    nil,
+	}
+	view := BucketDetailView{bucket}
+	result := view.RenderTable()
+
+	if !strings.Contains(result, "Could not retrieve IAM policy") {
+		t.Errorf("expected 'Could not retrieve' message for nil IAM policy, got:\n%s", result)
+	}
+}
+
+func TestBucketDetailView_LifecycleMultipleConditions(t *testing.T) {
+	bucket := storage.Bucket{
+		Name:         "lifecycle-bucket",
+		Provider:     domain.GCP,
+		Location:     "US",
+		StorageClass: "STANDARD",
+		CreatedAt:    time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
+		UpdatedAt:    time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
+		LifecycleRules: []storage.LifecycleRule{
+			{
+				Action: "Delete",
+				Condition: storage.LifecycleCondition{
+					Age:                 90,
+					NumNewerVersions:    3,
+					MatchesStorageClass: []string{"NEARLINE", "COLDLINE"},
+					CreatedBefore:       time.Date(2024, 6, 1, 0, 0, 0, 0, time.UTC),
+				},
+			},
+		},
+	}
+	view := BucketDetailView{bucket}
+	result := view.RenderTable()
+
+	expectedConditions := []string{
+		"Age > 90 days",
+		"NumNewerVersions = 3",
+		"StorageClass IN (NEARLINE, COLDLINE)",
+		"CreatedBefore = 2024-06-01",
+	}
+	for _, cond := range expectedConditions {
+		if !strings.Contains(result, cond) {
+			t.Errorf("expected lifecycle condition %q in output, got:\n%s", cond, result)
+		}
+	}
+}
+
+func TestObjectDetailView_AllHTTPHeaders(t *testing.T) {
+	object := storage.Object{
+		Key:                "headers.txt",
+		Bucket:             "my-bucket",
+		Provider:           domain.GCP,
+		CreatedAt:          time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
+		ContentType:        "text/plain",
+		ContentEncoding:    "gzip",
+		ContentLanguage:    "en-US",
+		CacheControl:       "max-age=3600",
+		ContentDisposition: "attachment; filename=headers.txt",
+	}
+	view := ObjectDetailView{object}
+	result := view.RenderTable()
+
+	expectedHeaders := []string{
+		"Content-Type", "text/plain",
+		"Content-Encoding", "gzip",
+		"Content-Language", "en-US",
+		"Cache-Control", "max-age=3600",
+		"Content-Disposition", "attachment",
+	}
+	for _, h := range expectedHeaders {
+		if !strings.Contains(result, h) {
+			t.Errorf("expected HTTP header %q in output, got:\n%s", h, result)
+		}
+	}
+}
+
+func TestObjectDetailView_ZeroCreatedAt(t *testing.T) {
+	object := storage.Object{
+		Key:      "no-time.txt",
+		Bucket:   "my-bucket",
+		Provider: domain.GCP,
+	}
+	view := ObjectDetailView{object}
+	result := view.RenderTable()
+
+	if !strings.Contains(result, "N/A") {
+		t.Errorf("expected 'N/A' for zero CreatedAt, got:\n%s", result)
+	}
+}
+
+func TestBucketDetailView_IAMPolicyWithConditions(t *testing.T) {
+	bucket := storage.Bucket{
+		Name:         "cond-bucket",
+		Provider:     domain.GCP,
+		Location:     "US",
+		StorageClass: "STANDARD",
+		CreatedAt:    time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
+		UpdatedAt:    time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
+		IAMPolicy: &storage.IAMPolicy{
+			Bindings: []storage.IAMBinding{
+				{Role: "roles/storage.viewer", Principals: []string{"user:a@example.com", "user:b@example.com"}},
+			},
+			HasConditions: true,
+		},
+	}
+	view := BucketDetailView{bucket}
+	result := view.RenderTable()
+
+	if !strings.Contains(result, "conditional bindings") {
+		t.Errorf("expected conditional bindings note, got:\n%s", result)
+	}
+	// Verify multi-principal rendering
+	if !strings.Contains(result, "user:a@example.com") || !strings.Contains(result, "user:b@example.com") {
+		t.Errorf("expected both principals in output, got:\n%s", result)
+	}
+}
