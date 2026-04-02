@@ -1,4 +1,4 @@
-// File: pkg/sql/gcp/gcp.go
+// File: internal/provider/sql/gcp/gcp.go
 package gcp
 
 import (

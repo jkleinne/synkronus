@@ -1,4 +1,4 @@
-// File: pkg/storage/gcp/mappers.go
+// File: internal/provider/storage/gcp/mappers.go
 package gcp
 
 import (

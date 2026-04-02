@@ -1,4 +1,4 @@
-// File: pkg/storage/aws/aws.go
+// File: internal/provider/storage/aws/aws.go
 package aws
 
 import (

@@ -1,4 +1,4 @@
-// File: pkg/storage/gcp/objects.go
+// File: internal/provider/storage/gcp/objects.go
 package gcp
 
 import (

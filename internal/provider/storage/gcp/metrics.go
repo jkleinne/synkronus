@@ -1,4 +1,4 @@
-// File: pkg/storage/gcp/metrics.go
+// File: internal/provider/storage/gcp/metrics.go
 package gcp
 
 import (

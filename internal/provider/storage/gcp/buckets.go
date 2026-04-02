@@ -1,4 +1,4 @@
-// File: pkg/storage/gcp/buckets.go
+// File: internal/provider/storage/gcp/buckets.go
 package gcp
 
 import (
