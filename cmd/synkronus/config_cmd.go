@@ -3,7 +3,7 @@ package main
 
 import (
 	"fmt"
-	"sort"
+	"slices"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -119,7 +119,7 @@ func newConfigCmd() *cobra.Command {
 			for k := range displaySettings {
 				keys = append(keys, k)
 			}
-			sort.Strings(keys)
+			slices.Sort(keys)
 
 			fmt.Println("Current configuration:")
 			for _, k := range keys {

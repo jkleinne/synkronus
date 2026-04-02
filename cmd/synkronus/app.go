@@ -8,10 +8,10 @@ import (
 	"os"
 	"synkronus/internal/config"
 	"synkronus/internal/logger"
+	"synkronus/internal/output"
 	"synkronus/internal/provider/factory"
 	"synkronus/internal/service"
 	"synkronus/internal/ui/prompt"
-	"synkronus/pkg/formatter"
 )
 
 // Defines a specific type for the context key to avoid collisions
@@ -20,21 +20,20 @@ type contextKey string
 const appContextKey contextKey = "appContainer"
 
 // appContainer holds all the shared dependencies for the application
-// This includes configuration, service clients, formatters, and the logger
+// This includes configuration, service clients, output format, and the logger
 type appContainer struct {
-	Config           *config.Config
-	ConfigManager    *config.ConfigManager
-	ProviderFactory  *factory.Factory
-	StorageService   *service.StorageService
-	SqlService       *service.SqlService
-	StorageFormatter *formatter.StorageFormatter
-	SqlFormatter     *formatter.SqlFormatter
-	Prompter         prompt.Prompter
-	Logger           *slog.Logger
+	Config          *config.Config
+	ConfigManager   *config.ConfigManager
+	ProviderFactory *factory.Factory
+	StorageService  *service.StorageService
+	SqlService      *service.SqlService
+	OutputFormat    output.Format
+	Prompter        prompt.Prompter
+	Logger          *slog.Logger
 }
 
-// Creates and initializes a new application container based on the debug mode setting
-func newApp(debugMode bool) (*appContainer, error) {
+// Creates and initializes a new application container based on the debug mode and output format settings
+func newApp(debugMode bool, outputFormat output.Format) (*appContainer, error) {
 	// 1. Initialize the logger first, as it's required by other components
 	logLevel := slog.LevelInfo
 	if debugMode {
@@ -57,22 +56,19 @@ func newApp(debugMode bool) (*appContainer, error) {
 	providerFactory := factory.NewFactory(cfg, log)
 	storageService := service.NewStorageService(providerFactory, log)
 	sqlService := service.NewSqlService(providerFactory, log)
-	storageFormatter := formatter.NewStorageFormatter()
-	sqlFormatter := formatter.NewSqlFormatter()
 
 	// 4. Initialize UI components
 	prompter := prompt.NewStandardPrompter(os.Stdin, os.Stdout)
 
 	return &appContainer{
-		Config:           cfg,
-		ConfigManager:    cfgManager,
-		ProviderFactory:  providerFactory,
-		StorageService:   storageService,
-		SqlService:       sqlService,
-		StorageFormatter: storageFormatter,
-		SqlFormatter:     sqlFormatter,
-		Prompter:         prompter,
-		Logger:           log,
+		Config:          cfg,
+		ConfigManager:   cfgManager,
+		ProviderFactory: providerFactory,
+		StorageService:  storageService,
+		SqlService:      sqlService,
+		OutputFormat:    outputFormat,
+		Prompter:        prompter,
+		Logger:          log,
 	}, nil
 }
 

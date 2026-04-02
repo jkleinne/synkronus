@@ -5,12 +5,12 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"sort"
+	"slices"
 	"strings"
 	"synkronus/internal/config"
+	"synkronus/internal/domain/sql"
+	"synkronus/internal/domain/storage"
 	"synkronus/internal/provider/registry"
-	"synkronus/pkg/sql"
-	"synkronus/pkg/storage"
 )
 
 type Factory struct {
@@ -42,70 +42,64 @@ func getConfigured[T any](regs map[string]registry.Registration[T], cfg *config.
 			configured = append(configured, name)
 		}
 	}
-	sort.Strings(configured)
+	slices.Sort(configured)
 	return configured
+}
+
+// getProvider is a generic helper that looks up, validates, and initializes any registered provider.
+// serviceLabel is used in error messages (e.g. "storage", "SQL").
+func getProvider[T any](
+	ctx context.Context,
+	name string,
+	getRegistration func(string) (registry.Registration[T], bool),
+	getSupportedNames func() []string,
+	cfg *config.Config,
+	logger *slog.Logger,
+	serviceLabel string,
+) (T, error) {
+	var zero T
+	normalizedName := strings.ToLower(name)
+	providerLogger := logger.With("provider", normalizedName)
+
+	registration, exists := getRegistration(normalizedName)
+	if !exists {
+		return zero, fmt.Errorf("unsupported %s provider: %s. Supported %s providers are: %v", serviceLabel, name, serviceLabel, getSupportedNames())
+	}
+
+	if !registration.ConfigCheck(cfg) {
+		return zero, fmt.Errorf("%s provider '%s' is not configured. Use 'synkronus config set %s.<key> <value>'", serviceLabel, normalizedName, normalizedName)
+	}
+
+	client, err := registration.Initializer(ctx, cfg, providerLogger)
+	if err != nil {
+		return zero, fmt.Errorf("failed to initialize %s provider %s: %w", serviceLabel, normalizedName, err)
+	}
+
+	return client, nil
+}
+
+// isProviderConfigured is a generic helper that checks whether a named provider is registered and configured.
+func isProviderConfigured[T any](name string, getRegistration func(string) (registry.Registration[T], bool), cfg *config.Config) bool {
+	registration, exists := getRegistration(name)
+	return exists && registration.ConfigCheck(cfg)
 }
 
 // Checks if a specific provider is registered and configured
 func (f *Factory) IsConfigured(providerName string) bool {
-	registration, exists := registry.GetRegistration(providerName)
-	if !exists {
-		return false
-	}
-	return registration.ConfigCheck(f.cfg)
+	return isProviderConfigured(providerName, registry.GetRegistration, f.cfg)
 }
 
 // Checks if a specific SQL provider is registered and configured
 func (f *Factory) IsSqlConfigured(providerName string) bool {
-	registration, exists := registry.GetSqlRegistration(providerName)
-	if !exists {
-		return false
-	}
-	return registration.ConfigCheck(f.cfg)
+	return isProviderConfigured(providerName, registry.GetSqlRegistration, f.cfg)
 }
 
 // Initializes and returns the storage client for the specified provider
-func (f *Factory) GetStorageProvider(ctx context.Context, providerName string) (storage.Storage, error) {
-	normalizedName := strings.ToLower(providerName)
-	providerLogger := f.logger.With("provider", normalizedName)
-
-	registration, exists := registry.GetRegistration(normalizedName)
-
-	if !exists {
-		return nil, fmt.Errorf("unsupported provider: %s. Supported providers are: %v", providerName, registry.GetSupportedProviders())
-	}
-
-	if !registration.ConfigCheck(f.cfg) {
-		return nil, fmt.Errorf("provider '%s' is not configured. Use 'synkronus config set %s.<key> <value>' (e.g., 'gcp.project' or 'aws.region')", normalizedName, normalizedName)
-	}
-
-	client, err := registration.Initializer(ctx, f.cfg, providerLogger)
-	if err != nil {
-		return nil, fmt.Errorf("failed to initialize provider %s: %w", normalizedName, err)
-	}
-
-	return client, nil
+func (f *Factory) GetStorageProvider(ctx context.Context, name string) (storage.Storage, error) {
+	return getProvider(ctx, name, registry.GetRegistration, registry.GetSupportedProviders, f.cfg, f.logger, "storage")
 }
 
 // Initializes and returns the SQL client for the specified provider
-func (f *Factory) GetSqlProvider(ctx context.Context, providerName string) (sql.SQL, error) {
-	normalizedName := strings.ToLower(providerName)
-	providerLogger := f.logger.With("provider", normalizedName)
-
-	registration, exists := registry.GetSqlRegistration(normalizedName)
-
-	if !exists {
-		return nil, fmt.Errorf("unsupported SQL provider: %s. Supported SQL providers are: %v", providerName, registry.GetSupportedSqlProviders())
-	}
-
-	if !registration.ConfigCheck(f.cfg) {
-		return nil, fmt.Errorf("SQL provider '%s' is not configured. Use 'synkronus config set %s.<key> <value>' (e.g., 'gcp.project')", normalizedName, normalizedName)
-	}
-
-	client, err := registration.Initializer(ctx, f.cfg, providerLogger)
-	if err != nil {
-		return nil, fmt.Errorf("failed to initialize SQL provider %s: %w", normalizedName, err)
-	}
-
-	return client, nil
+func (f *Factory) GetSqlProvider(ctx context.Context, name string) (sql.SQL, error) {
+	return getProvider(ctx, name, registry.GetSqlRegistration, registry.GetSupportedSqlProviders, f.cfg, f.logger, "SQL")
 }

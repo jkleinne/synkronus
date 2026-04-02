@@ -31,4 +31,8 @@ const (
 	// Debug flags are used to enable verbose logging
 	Debug      = "debug"
 	DebugShort = "d"
+
+	// Output flags are used to select the output format (table, json, yaml)
+	Output      = "output"
+	OutputShort = "o"
 )

@@ -106,12 +106,16 @@ func (cm *ConfigManager) SetValue(key, value string) error {
 
 	var config Config
 	if err := cm.unmarshalStrict(&config); err != nil {
-		cm.v.ReadInConfig() // Revert
+		if revertErr := cm.v.ReadInConfig(); revertErr != nil {
+			return fmt.Errorf("%w (additionally, failed to revert config: %v)", err, revertErr)
+		}
 		return err
 	}
 
 	if err := cm.validateConfig(&config); err != nil {
-		cm.v.ReadInConfig() // Revert
+		if revertErr := cm.v.ReadInConfig(); revertErr != nil {
+			return fmt.Errorf("%w (additionally, failed to revert config: %v)", err, revertErr)
+		}
 		return err
 	}
 
@@ -136,12 +140,16 @@ func (cm *ConfigManager) DeleteValue(key string) (bool, error) {
 
 	var config Config
 	if err := cm.unmarshalStrict(&config); err != nil {
-		cm.v.ReadInConfig() // Revert
+		if revertErr := cm.v.ReadInConfig(); revertErr != nil {
+			return false, fmt.Errorf("%w (additionally, failed to revert config: %v)", err, revertErr)
+		}
 		return false, fmt.Errorf("error parsing config after deletion: %w", err)
 	}
 
 	if err := cm.validateConfig(&config); err != nil {
-		cm.v.ReadInConfig() // Revert
+		if revertErr := cm.v.ReadInConfig(); revertErr != nil {
+			return false, fmt.Errorf("%w (additionally, failed to revert config: %v)", err, revertErr)
+		}
 		return false, fmt.Errorf("cannot delete key '%s': %w", key, err)
 	}
 
