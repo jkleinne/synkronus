@@ -27,24 +27,8 @@ func (g *GCPStorage) getAllBucketUsages(ctx context.Context) (map[string]int64, 
 		return nil, fmt.Errorf("failed to create monitoring client: %w", err)
 	}
 
-	endTime := time.Now()
-	startTime := endTime.Add(-metricTimeWindow)
-
-	req := &monitoringpb.ListTimeSeriesRequest{
-		Name: fmt.Sprintf("projects/%s", g.projectID),
-		// Request metrics for all buckets
-		Filter: `metric.type="storage.googleapis.com/storage/v2/total_bytes"`,
-		Interval: &monitoringpb.TimeInterval{
-			StartTime: timestamppb.New(startTime),
-			EndTime:   timestamppb.New(endTime),
-		},
-		Aggregation: &monitoringpb.Aggregation{
-			AlignmentPeriod:    durationpb.New(metricTimeWindow),
-			PerSeriesAligner:   monitoringpb.Aggregation_ALIGN_MEAN,
-			CrossSeriesReducer: monitoringpb.Aggregation_REDUCE_SUM,
-			GroupByFields:      []string{"resource.labels.bucket_name"},
-		},
-	}
+	filter := `metric.type="storage.googleapis.com/storage/v2/total_bytes"`
+	req := buildMetricsRequest(g.projectID, filter)
 
 	usageMap := make(map[string]int64)
 	it := client.ListTimeSeries(ctx, req)
@@ -81,24 +65,8 @@ func (g *GCPStorage) getSingleBucketUsage(ctx context.Context, bucketName string
 		return -1, fmt.Errorf("failed to create monitoring client: %w", err)
 	}
 
-	endTime := time.Now()
-	startTime := endTime.Add(-metricTimeWindow)
-
-	req := &monitoringpb.ListTimeSeriesRequest{
-		Name: fmt.Sprintf("projects/%s", g.projectID),
-		// Request metrics for a single bucket
-		Filter: fmt.Sprintf(`metric.type="storage.googleapis.com/storage/v2/total_bytes" AND resource.labels.bucket_name="%s"`, bucketName),
-		Interval: &monitoringpb.TimeInterval{
-			StartTime: timestamppb.New(startTime),
-			EndTime:   timestamppb.New(endTime),
-		},
-		Aggregation: &monitoringpb.Aggregation{
-			AlignmentPeriod:    durationpb.New(metricTimeWindow),
-			PerSeriesAligner:   monitoringpb.Aggregation_ALIGN_MEAN,
-			CrossSeriesReducer: monitoringpb.Aggregation_REDUCE_SUM,
-			GroupByFields:      []string{"resource.labels.bucket_name"},
-		},
-	}
+	filter := fmt.Sprintf(`metric.type="storage.googleapis.com/storage/v2/total_bytes" AND resource.labels.bucket_name="%s"`, bucketName)
+	req := buildMetricsRequest(g.projectID, filter)
 
 	it := client.ListTimeSeries(ctx, req)
 
@@ -120,6 +88,30 @@ func (g *GCPStorage) getSingleBucketUsage(ctx context.Context, bucketName string
 	}
 
 	return -1, ErrMetricsNotFound
+}
+
+// buildMetricsRequest constructs a ListTimeSeriesRequest for GCP storage byte
+// usage metrics scoped to the given project. The caller provides the filter
+// expression so the same aggregation config can be reused for both per-bucket
+// and all-bucket queries.
+func buildMetricsRequest(projectID, filter string) *monitoringpb.ListTimeSeriesRequest {
+	endTime := time.Now()
+	startTime := endTime.Add(-metricTimeWindow)
+
+	return &monitoringpb.ListTimeSeriesRequest{
+		Name:   fmt.Sprintf("projects/%s", projectID),
+		Filter: filter,
+		Interval: &monitoringpb.TimeInterval{
+			StartTime: timestamppb.New(startTime),
+			EndTime:   timestamppb.New(endTime),
+		},
+		Aggregation: &monitoringpb.Aggregation{
+			AlignmentPeriod:    durationpb.New(metricTimeWindow),
+			PerSeriesAligner:   monitoringpb.Aggregation_ALIGN_MEAN,
+			CrossSeriesReducer: monitoringpb.Aggregation_REDUCE_SUM,
+			GroupByFields:      []string{"resource.labels.bucket_name"},
+		},
+	}
 }
 
 func extractUsageValue(pointValue *monitoringpb.TypedValue) int64 {
