@@ -7,6 +7,7 @@ import (
 	"os"
 	"strings"
 	"synkronus/internal/flags"
+	"synkronus/internal/output"
 	"synkronus/internal/provider/registry"
 
 	"github.com/spf13/cobra"
@@ -68,7 +69,7 @@ Use the --providers flag to specify which providers to query (e.g., --providers 
 			}
 
 			if len(allBuckets) > 0 {
-				fmt.Println(app.StorageFormatter.FormatBucketList(allBuckets))
+				return output.Render(os.Stdout, app.OutputFormat, output.BucketListView(allBuckets))
 			} else {
 				if len(providersToQuery) == 0 {
 					fmt.Printf("No providers configured. Use 'synkronus config set'. Supported providers: %s\n", strings.Join(registry.GetSupportedProviders(), ", "))
@@ -101,8 +102,7 @@ Use the --providers flag to specify which providers to query (e.g., --providers 
 				return fmt.Errorf("error describing bucket '%s' on %s: %w", bucketName, providerName, err)
 			}
 
-			fmt.Println(app.StorageFormatter.FormatBucketDetails(bucketDetails))
-			return nil
+			return output.Render(os.Stdout, app.OutputFormat, output.BucketDetailView{Bucket: bucketDetails})
 		},
 	}
 	describeBucketCmd.Flags().StringVarP(&cmdFlags.provider, flags.Provider, flags.ProviderShort, "", "The provider where the bucket resides (required)")
@@ -200,8 +200,7 @@ Requires the --bucket and --provider flags. Use --prefix to filter the results (
 				return fmt.Errorf("error listing objects in bucket '%s' on %s: %w", bucketName, providerName, err)
 			}
 
-			fmt.Println(app.StorageFormatter.FormatObjectList(objectList))
-			return nil
+			return output.Render(os.Stdout, app.OutputFormat, output.ObjectListView{ObjectList: objectList})
 		},
 	}
 	listObjectsCmd.Flags().StringVarP(&cmdFlags.provider, flags.Provider, flags.ProviderShort, "", "The provider where the bucket resides (required)")
@@ -230,8 +229,7 @@ Requires the --bucket and --provider flags. Use --prefix to filter the results (
 				return fmt.Errorf("error describing object '%s' in bucket '%s' on %s: %w", objectKey, bucketName, providerName, err)
 			}
 
-			fmt.Println(app.StorageFormatter.FormatObjectDetails(objectDetails))
-			return nil
+			return output.Render(os.Stdout, app.OutputFormat, output.ObjectDetailView{Object: objectDetails})
 		},
 	}
 	describeObjectCmd.Flags().StringVarP(&cmdFlags.provider, flags.Provider, flags.ProviderShort, "", "The provider where the object resides (required)")

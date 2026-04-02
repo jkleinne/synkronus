@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"synkronus/internal/flags"
+	"synkronus/internal/output"
 
 	"github.com/spf13/cobra"
 )
@@ -12,6 +13,7 @@ import (
 // Creates the root command, defines global flags, and sets up the initialization hook
 func newRootCmd() *cobra.Command {
 	var debugMode bool
+	var outputFormatStr string
 
 	cmd := &cobra.Command{
 		Use:   "synkronus",
@@ -20,8 +22,14 @@ func newRootCmd() *cobra.Command {
 like storage, SQL databases, and more. Configure your providers and
 manage your infrastructure from one place.`,
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+			// Parse and validate the output format flag
+			outputFormat, err := output.ParseFormat(outputFormatStr)
+			if err != nil {
+				return err
+			}
+
 			// Initialize the application container
-			app, err := newApp(debugMode)
+			app, err := newApp(debugMode, outputFormat)
 			if err != nil {
 				return fmt.Errorf("failed to initialize application: %w", err)
 			}
@@ -45,6 +53,7 @@ manage your infrastructure from one place.`,
 
 	// Define persistent flags (available to all subcommands)
 	cmd.PersistentFlags().BoolVarP(&debugMode, flags.Debug, flags.DebugShort, false, "Enable verbose debug logging")
+	cmd.PersistentFlags().StringVarP(&outputFormatStr, flags.Output, flags.OutputShort, "table", "Output format: table, json, yaml")
 
 	// Add subcommands
 	cmd.AddCommand(newStorageCmd())

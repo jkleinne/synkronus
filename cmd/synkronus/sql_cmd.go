@@ -6,6 +6,7 @@ import (
 	"os"
 	"strings"
 	"synkronus/internal/flags"
+	"synkronus/internal/output"
 	"synkronus/internal/provider/registry"
 
 	"github.com/spf13/cobra"
@@ -60,7 +61,7 @@ Use the --providers flag to specify which providers to query (e.g., --providers 
 			}
 
 			if len(allInstances) > 0 {
-				fmt.Println(app.SqlFormatter.FormatInstanceList(allInstances))
+				return output.Render(os.Stdout, app.OutputFormat, output.InstanceListView(allInstances))
 			} else {
 				if len(providersToQuery) == 0 {
 					fmt.Printf("No SQL providers configured. Use 'synkronus config set'. Supported SQL providers: %s\n", strings.Join(registry.GetSupportedSqlProviders(), ", "))
@@ -93,8 +94,7 @@ Use the --providers flag to specify which providers to query (e.g., --providers 
 				return fmt.Errorf("error describing SQL instance '%s' on %s: %w", instanceName, providerName, err)
 			}
 
-			fmt.Println(app.SqlFormatter.FormatInstanceDetails(instanceDetails))
-			return nil
+			return output.Render(os.Stdout, app.OutputFormat, output.InstanceDetailView{Instance: instanceDetails})
 		},
 	}
 	describeInstanceCmd.Flags().StringVarP(&cmdFlags.provider, flags.Provider, flags.ProviderShort, "", "The provider where the SQL instance resides (required)")
