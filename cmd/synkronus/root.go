@@ -3,9 +3,13 @@ package main
 
 import (
 	"fmt"
+	"io"
+	"log/slog"
 	"os"
+	"path/filepath"
 	"synkronus/internal/flags"
 	"synkronus/internal/output"
+	"synkronus/internal/tui"
 
 	"github.com/spf13/cobra"
 )
@@ -44,6 +48,43 @@ manage your infrastructure from one place.`,
 			cmd.SetContext(ctx)
 
 			return nil
+		},
+		// Launch TUI when no subcommand is given
+		RunE: func(cmd *cobra.Command, args []string) error {
+			app, err := appFromContext(cmd.Context())
+			if err != nil {
+				return err
+			}
+
+			// Redirect stderr away from the terminal — slog writes from
+			// the service layer would corrupt Bubble Tea's alt-screen.
+			// In debug mode, redirect to a log file; otherwise, discard.
+			origStderr := os.Stderr
+			var logWriter io.Writer = io.Discard
+			if debugMode {
+				logPath := filepath.Join(os.Getenv("HOME"), ".config", "synkronus", "debug.log")
+				if f, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0600); err == nil {
+					defer f.Close()
+					logWriter = f
+				}
+			}
+			os.Stderr = os.NewFile(0, os.DevNull)
+			// Set a TUI-safe logger and override the default
+			tuiLogger := slog.New(slog.NewTextHandler(logWriter, &slog.HandlerOptions{Level: slog.LevelDebug}))
+			slog.SetDefault(tuiLogger)
+
+			tuiErr := tui.Run(tui.Deps{
+				StorageService: app.StorageService,
+				SqlService:     app.SqlService,
+				ConfigManager:  app.ConfigManager,
+				Config:         app.Config,
+				Factory:        app.ProviderFactory,
+				Logger:         tuiLogger,
+			})
+
+			// Restore stderr after TUI exits
+			os.Stderr = origStderr
+			return tuiErr
 		},
 		// Silence usage on error, error reporting is explicitly handled in Execute()
 		SilenceUsage: true,
