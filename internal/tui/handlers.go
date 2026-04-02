@@ -672,6 +672,7 @@ func (m *Model) handleConfigUpdated(msg ConfigUpdatedMsg) (tea.Model, tea.Cmd) {
 		m.err = msg.Err
 		return m, nil
 	}
+	m.refreshFactoryConfig()
 	m.statusMessage = "Configuration updated"
 	m.config.loading = true
 	return m, tea.Batch(fetchConfigCmd(m.configManager), clearStatusCmd())
@@ -683,6 +684,7 @@ func (m *Model) handleConfigDeleted(msg ConfigDeletedMsg) (tea.Model, tea.Cmd) {
 		m.err = msg.Err
 		return m, nil
 	}
+	m.refreshFactoryConfig()
 	m.statusMessage = "Configuration entry deleted"
 	m.config.loading = true
 	return m, tea.Batch(fetchConfigCmd(m.configManager), clearStatusCmd())
@@ -694,8 +696,23 @@ func (m *Model) handleProviderRemoved(msg ProviderRemovedMsg) (tea.Model, tea.Cm
 		m.err = msg.Err
 		return m, nil
 	}
+	m.refreshFactoryConfig()
 	m.statusMessage = "Provider removed"
 	m.config.cursor = 0
 	m.config.loading = true
+	// Invalidate cached data for tabs that depend on provider config
+	m.storage.loaded = false
+	m.sql.loaded = false
 	return m, tea.Batch(fetchConfigCmd(m.configManager), clearStatusCmd())
+}
+
+// refreshFactoryConfig reloads the config from disk and updates the factory
+// so provider status checks and queries reflect the latest configuration.
+func (m *Model) refreshFactoryConfig() {
+	cfg, err := m.configManager.LoadConfig()
+	if err != nil {
+		return
+	}
+	m.cfg = cfg
+	m.factory.UpdateConfig(cfg)
 }

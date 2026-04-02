@@ -25,6 +25,12 @@ func NewFactory(cfg *config.Config, logger *slog.Logger) *Factory {
 	}
 }
 
+// UpdateConfig replaces the factory's configuration, causing subsequent
+// provider lookups to reflect the new state. Used by the TUI after config changes.
+func (f *Factory) UpdateConfig(cfg *config.Config) {
+	f.cfg = cfg
+}
+
 // Returns a list of providers that are registered and configured
 func (f *Factory) GetConfiguredProviders() []string {
 	return getConfigured(registry.GetAllRegistrations(), f.cfg)
