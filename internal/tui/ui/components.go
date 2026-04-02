@@ -93,9 +93,12 @@ func RenderTable(headers []string, rows [][]string, cursor, offset, termWidth in
 		}
 	}
 
+	// Add column gap (minimum 2 chars between columns)
+	const colGap = 3
+
 	var headerCells []string
 	for i, h := range headers {
-		headerCells = append(headerCells, TableHeaderStyle.Width(colWidths[i]+2).Render(strings.ToUpper(h)))
+		headerCells = append(headerCells, TableHeaderStyle.Width(colWidths[i]+colGap).Render(strings.ToUpper(h)))
 	}
 	headerLine := lipgloss.JoinHorizontal(lipgloss.Top, headerCells...)
 
@@ -124,7 +127,7 @@ func RenderTable(headers []string, rows [][]string, cursor, offset, termWidth in
 			} else if j == 0 {
 				cellContent = "  " + cellContent
 			}
-			cells = append(cells, style.Width(colWidths[j]+2).Render(cellContent))
+			cells = append(cells, style.Width(colWidths[j]+colGap).Render(cellContent))
 		}
 		renderedRows = append(renderedRows, lipgloss.JoinHorizontal(lipgloss.Top, cells...))
 	}
@@ -231,8 +234,20 @@ func RenderBreadcrumb(parts []string) string {
 }
 
 // RenderError renders an inline error message.
+// maxErrorLength is the maximum characters shown in inline error messages.
+const maxErrorLength = 120
+
 func RenderError(msg string, termWidth int) string {
-	content := ErrorStyle.Render("Error: " + msg)
+	// Truncate long error messages to keep them readable
+	truncated := msg
+	if len(truncated) > maxErrorLength {
+		truncated = truncated[:maxErrorLength] + "..."
+	}
+	// Also strip to first line only (no JSON dumps)
+	if idx := strings.IndexByte(truncated, '\n'); idx >= 0 {
+		truncated = truncated[:idx] + "..."
+	}
+	content := ErrorStyle.Render("Error: " + truncated)
 	retry := TextDimStyle.Render("  Press r to retry")
 	return lipgloss.PlaceHorizontal(termWidth, lipgloss.Center, content+retry)
 }
