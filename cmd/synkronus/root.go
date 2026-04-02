@@ -6,6 +6,7 @@ import (
 	"os"
 	"synkronus/internal/flags"
 	"synkronus/internal/output"
+	"synkronus/internal/tui"
 
 	"github.com/spf13/cobra"
 )
@@ -44,6 +45,21 @@ manage your infrastructure from one place.`,
 			cmd.SetContext(ctx)
 
 			return nil
+		},
+		// Launch TUI when no subcommand is given
+		RunE: func(cmd *cobra.Command, args []string) error {
+			app, err := appFromContext(cmd.Context())
+			if err != nil {
+				return err
+			}
+			return tui.Run(tui.Deps{
+				StorageService: app.StorageService,
+				SqlService:     app.SqlService,
+				ConfigManager:  app.ConfigManager,
+				Config:         app.Config,
+				Factory:        app.ProviderFactory,
+				Logger:         app.Logger,
+			})
 		},
 		// Silence usage on error, error reporting is explicitly handled in Execute()
 		SilenceUsage: true,
