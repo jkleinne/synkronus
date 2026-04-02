@@ -6,7 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"sort"
+	"slices"
+	"strings"
 	"synkronus/internal/domain"
 	"synkronus/internal/domain/storage"
 
@@ -144,7 +145,7 @@ func (g *GCPStorage) getIAMPolicy(ctx context.Context, bucketHandle *gcpstorage.
 		// Ensure principals are sorted for deterministic output
 		principals := make([]string, len(binding.Members))
 		copy(principals, binding.Members)
-		sort.Strings(principals)
+		slices.Sort(principals)
 
 		bindings = append(bindings, storage.IAMBinding{
 			Role:       binding.Role,
@@ -153,8 +154,8 @@ func (g *GCPStorage) getIAMPolicy(ctx context.Context, bucketHandle *gcpstorage.
 	}
 
 	// Sort bindings by role name for deterministic output
-	sort.Slice(bindings, func(i, j int) bool {
-		return bindings[i].Role < bindings[j].Role
+	slices.SortFunc(bindings, func(a, b storage.IAMBinding) int {
+		return strings.Compare(a.Role, b.Role)
 	})
 
 	return &storage.IAMPolicy{

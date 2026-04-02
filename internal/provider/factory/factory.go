@@ -5,7 +5,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"sort"
+	"slices"
 	"strings"
 	"synkronus/internal/config"
 	"synkronus/internal/domain/sql"
@@ -42,7 +42,7 @@ func getConfigured[T any](regs map[string]registry.Registration[T], cfg *config.
 			configured = append(configured, name)
 		}
 	}
-	sort.Strings(configured)
+	slices.Sort(configured)
 	return configured
 }
 

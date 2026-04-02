@@ -5,7 +5,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"sort"
+	"slices"
 	"strings"
 	"sync"
 	"synkronus/internal/config"
@@ -62,7 +62,7 @@ func (r *Registry[T]) GetSupported() []string {
 	for name := range r.entries {
 		names = append(names, name)
 	}
-	sort.Strings(names)
+	slices.Sort(names)
 	return names
 }
 
