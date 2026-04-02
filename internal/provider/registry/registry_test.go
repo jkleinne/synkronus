@@ -83,6 +83,61 @@ func TestGet(t *testing.T) {
 	}
 }
 
+func TestRegister_NilConfigCheck_Panics(t *testing.T) {
+	r := newTestRegistry()
+	defer func() {
+		if recover() == nil {
+			t.Fatal("expected panic for nil ConfigCheck")
+		}
+	}()
+	r.Register("bad", Registration[string]{
+		ConfigCheck: nil,
+		Initializer: func(ctx context.Context, cfg *config.Config, logger *slog.Logger) (string, error) {
+			return "", nil
+		},
+	})
+}
+
+func TestRegister_NilInitializer_Panics(t *testing.T) {
+	r := newTestRegistry()
+	defer func() {
+		if recover() == nil {
+			t.Fatal("expected panic for nil Initializer")
+		}
+	}()
+	r.Register("bad2", Registration[string]{
+		ConfigCheck: func(cfg *config.Config) bool { return true },
+		Initializer: nil,
+	})
+}
+
+func TestGet_CaseInsensitive(t *testing.T) {
+	r := newTestRegistry()
+	r.Register("mycloud", dummyReg("mc"))
+
+	_, ok := r.Get("MYCLOUD")
+	if !ok {
+		t.Error("expected case-insensitive Get to find 'MYCLOUD'")
+	}
+	_, ok = r.Get("MyCloud")
+	if !ok {
+		t.Error("expected case-insensitive Get to find 'MyCloud'")
+	}
+}
+
+func TestRegister_CaseNormalization(t *testing.T) {
+	r := newTestRegistry()
+	r.Register("UPPERCASE", dummyReg("u"))
+
+	supported := r.GetSupported()
+	for _, name := range supported {
+		if name == "uppercase" {
+			return // found lowercase version
+		}
+	}
+	t.Errorf("expected 'uppercase' in supported list, got %v", supported)
+}
+
 func TestGetAll(t *testing.T) {
 	r := newTestRegistry()
 	r.Register("a", dummyReg("1"))

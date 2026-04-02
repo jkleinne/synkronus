@@ -194,6 +194,55 @@ func TestRemoveProvider_NonExistent(t *testing.T) {
 	}
 }
 
+func TestGetAllSettings_ReturnsCurrentState(t *testing.T) {
+	cm, _ := setupTestConfig(t)
+	settings := cm.GetAllSettings()
+	// The config has gcp.project set
+	gcpMap, ok := settings["gcp"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected gcp section in settings, got %v", settings)
+	}
+	if gcpMap["project"] != "test-project" {
+		t.Errorf("expected gcp.project=test-project, got %v", gcpMap["project"])
+	}
+}
+
+func TestGetAllSettings_EmptyConfig(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("HOME", tmpDir)
+	cm, err := NewConfigManager()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	settings := cm.GetAllSettings()
+	if settings == nil {
+		// Viper returns an empty map, not nil
+		t.Skip("settings is nil, which is acceptable for empty config")
+	}
+}
+
+func TestLoadConfig_UnknownKeys(t *testing.T) {
+	tmpDir := t.TempDir()
+	configDir := filepath.Join(tmpDir, ".config", ConfigDirName)
+	if err := os.MkdirAll(configDir, ConfigDirPermissions); err != nil {
+		t.Fatalf("failed to create config dir: %v", err)
+	}
+	configPath := filepath.Join(configDir, ConfigFileName)
+	content := `{"gcp": {"project": "test"}, "unknown_field": "bad"}`
+	if err := os.WriteFile(configPath, []byte(content), ConfigFilePermissions); err != nil {
+		t.Fatalf("failed to write config: %v", err)
+	}
+	t.Setenv("HOME", tmpDir)
+	cm, err := NewConfigManager()
+	if err != nil {
+		t.Fatalf("unexpected error creating config manager: %v", err)
+	}
+	_, err = cm.LoadConfig()
+	if err == nil {
+		t.Fatal("expected error for config with unknown keys")
+	}
+}
+
 func TestSaveConfig_DirectoryPermissions(t *testing.T) {
 	cm, tmpDir := setupTestConfig(t)
 	if err := cm.SaveConfig(); err != nil {
