@@ -2,6 +2,7 @@
 package config
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -162,6 +163,59 @@ func (cm *ConfigManager) DeleteValue(key string) (bool, error) {
 
 func (cm *ConfigManager) GetAllSettings() map[string]interface{} {
 	return cm.v.AllSettings()
+}
+
+// RemoveProvider removes an entire provider block (e.g., "gcp", "aws") from the
+// configuration. This bypasses per-field validation since the entire block is
+// removed — there are no dangling required fields. Returns true if the provider
+// was configured and removed, false if it wasn't present.
+func (cm *ConfigManager) RemoveProvider(providerName string) (bool, error) {
+	providerName = strings.ToLower(providerName)
+
+	settings := cm.v.AllSettings()
+	if _, exists := settings[providerName]; !exists {
+		return false, nil
+	}
+
+	// Remove the provider key from settings and write a fresh config file
+	delete(settings, providerName)
+
+	// Write the cleaned settings directly to file, bypassing Viper's
+	// in-memory state which doesn't support key deletion.
+	configPath, err := cm.getPreferredConfigPath()
+	if err != nil {
+		return false, err
+	}
+
+	configDir := filepath.Dir(configPath)
+	if err := os.MkdirAll(configDir, ConfigDirPermissions); err != nil {
+		return false, fmt.Errorf("failed to create config directory: %w", err)
+	}
+
+	data, err := marshalJSON(settings)
+	if err != nil {
+		return false, fmt.Errorf("failed to marshal config: %w", err)
+	}
+
+	if err := os.WriteFile(configPath, data, ConfigFilePermissions); err != nil {
+		return false, fmt.Errorf("failed to write config file: %w", err)
+	}
+
+	// Viper doesn't support key deletion — ReadInConfig merges with
+	// existing state. Create a fresh Viper instance pointing at the same file.
+	freshViper := viper.New()
+	freshViper.SetConfigFile(configPath)
+	if err := freshViper.ReadInConfig(); err != nil {
+		return false, fmt.Errorf("failed to reload config after provider removal: %w", err)
+	}
+	cm.v = freshViper
+
+	return true, nil
+}
+
+// marshalJSON encodes settings as indented JSON.
+func marshalJSON(settings map[string]interface{}) ([]byte, error) {
+	return json.MarshalIndent(settings, "", "  ")
 }
 
 func (cm *ConfigManager) getPreferredConfigPath() (string, error) {

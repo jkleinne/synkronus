@@ -175,6 +175,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.handleConfigUpdated(msg)
 	case ConfigDeletedMsg:
 		return m.handleConfigDeleted(msg)
+	case ProviderRemovedMsg:
+		return m.handleProviderRemoved(msg)
 
 	case tea.KeyMsg:
 		// Overlay intercepts keys first to prevent leaking to the base view.
@@ -394,7 +396,7 @@ func (m *Model) renderOverlay() string {
 
 	case OverlayConfigDelete:
 		content := ui.RenderConfigDeleteConfirm(m.config.editKey)
-		return ui.RenderModal("Delete Config Entry", content, m.width, m.height)
+		return ui.RenderModal("Remove Provider", content, m.width, m.height)
 
 	default:
 		return ""

@@ -47,8 +47,19 @@ func RenderConfigEdit(key, value string, isNew bool, termWidth, termHeight int) 
 	return RenderModal(fmt.Sprintf("%s — %s", header, key), content, termWidth, termHeight)
 }
 
-// RenderConfigDeleteConfirm returns the confirmation modal content for deleting a
-// config entry. The caller is expected to embed this in a modal via RenderModal.
+// RenderConfigDeleteConfirm returns the confirmation modal content for removing
+// a provider. The caller is expected to embed this in a modal via RenderModal.
 func RenderConfigDeleteConfirm(key string) string {
-	return fmt.Sprintf("Delete config entry '%s'? Press Enter to confirm or Esc to cancel.", key)
+	// Extract provider name from dot-notation key (e.g., "aws.region" → "aws")
+	provider := key
+	for i, c := range key {
+		if c == '.' {
+			provider = key[:i]
+			break
+		}
+	}
+	return fmt.Sprintf(
+		"Remove provider '%s' and all its configuration?\n\nPress Enter to confirm or Esc to cancel.",
+		provider,
+	)
 }

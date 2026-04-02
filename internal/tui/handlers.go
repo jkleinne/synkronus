@@ -515,7 +515,15 @@ func (m *Model) handleConfigEditKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 func (m *Model) handleConfigDeleteConfirm() (tea.Model, tea.Cmd) {
 	m.overlay = OverlayNone
 	m.config.loading = true
-	return m, deleteConfigCmd(m.configManager, m.config.editKey)
+
+	// Extract the provider name (first segment of dot-notation key).
+	// Use RemoveProvider to remove the entire provider block cleanly,
+	// avoiding validation failures from deleting individual required fields.
+	provider := m.config.editKey
+	if idx := strings.IndexByte(provider, '.'); idx >= 0 {
+		provider = provider[:idx]
+	}
+	return m, removeProviderCmd(m.configManager, provider)
 }
 
 // --- Tab switching ---
@@ -676,6 +684,18 @@ func (m *Model) handleConfigDeleted(msg ConfigDeletedMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	m.statusMessage = "Configuration entry deleted"
+	m.config.loading = true
+	return m, tea.Batch(fetchConfigCmd(m.configManager), clearStatusCmd())
+}
+
+func (m *Model) handleProviderRemoved(msg ProviderRemovedMsg) (tea.Model, tea.Cmd) {
+	m.config.loading = false
+	if msg.Err != nil {
+		m.err = msg.Err
+		return m, nil
+	}
+	m.statusMessage = "Provider removed"
+	m.config.cursor = 0
 	m.config.loading = true
 	return m, tea.Batch(fetchConfigCmd(m.configManager), clearStatusCmd())
 }

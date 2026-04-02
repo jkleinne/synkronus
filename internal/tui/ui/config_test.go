@@ -35,8 +35,11 @@ func TestRenderConfigEdit(t *testing.T) {
 
 func TestRenderConfigDeleteConfirm(t *testing.T) {
 	result := RenderConfigDeleteConfirm("gcp.project")
-	if !strings.Contains(result, "gcp.project") {
-		t.Error("delete confirm should show key name")
+	if !strings.Contains(result, "gcp") {
+		t.Error("delete confirm should show provider name")
+	}
+	if !strings.Contains(result, "Remove") {
+		t.Error("delete confirm should say Remove")
 	}
 }
 

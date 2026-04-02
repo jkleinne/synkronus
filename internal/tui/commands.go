@@ -71,6 +71,7 @@ type ConfigUpdatedMsg struct{ Err error }
 
 // ConfigDeletedMsg is sent when a config delete operation completes.
 type ConfigDeletedMsg struct{ Err error }
+type ProviderRemovedMsg struct{ Err error }
 
 // StatusClearMsg is sent after a timer to clear transient status messages.
 type StatusClearMsg struct{}
@@ -181,6 +182,13 @@ func deleteConfigCmd(cm *config.ConfigManager, key string) tea.Cmd {
 	return func() tea.Msg {
 		_, err := cm.DeleteValue(key)
 		return ConfigDeletedMsg{Err: err}
+	}
+}
+
+func removeProviderCmd(cm *config.ConfigManager, providerName string) tea.Cmd {
+	return func() tea.Msg {
+		_, err := cm.RemoveProvider(providerName)
+		return ProviderRemovedMsg{Err: err}
 	}
 }
 

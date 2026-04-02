@@ -147,6 +147,53 @@ func TestSaveConfig_FilePermissions(t *testing.T) {
 	}
 }
 
+func TestRemoveProvider_Existing(t *testing.T) {
+	cm, _ := setupTestConfig(t)
+
+	// Add AWS provider first
+	if err := cm.SetValue("aws.region", "us-east-1"); err != nil {
+		t.Fatalf("SetValue failed: %v", err)
+	}
+
+	// Remove the entire AWS provider
+	removed, err := cm.RemoveProvider("aws")
+	if err != nil {
+		t.Fatalf("RemoveProvider failed: %v", err)
+	}
+	if !removed {
+		t.Error("expected removed=true for existing provider")
+	}
+
+	// Verify it's gone
+	_, exists := cm.GetValue("aws.region")
+	if exists {
+		t.Error("aws.region should not exist after removing provider")
+	}
+
+	// GCP should still be intact
+	cfg, err := cm.LoadConfig()
+	if err != nil {
+		t.Fatalf("LoadConfig failed: %v", err)
+	}
+	if cfg.GCP == nil || cfg.GCP.Project != "test-project" {
+		t.Error("GCP config should be untouched after removing AWS")
+	}
+	if cfg.AWS != nil {
+		t.Error("AWS config should be nil after removal")
+	}
+}
+
+func TestRemoveProvider_NonExistent(t *testing.T) {
+	cm, _ := setupTestConfig(t)
+	removed, err := cm.RemoveProvider("azure")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if removed {
+		t.Error("expected removed=false for non-existent provider")
+	}
+}
+
 func TestSaveConfig_DirectoryPermissions(t *testing.T) {
 	cm, tmpDir := setupTestConfig(t)
 	if err := cm.SaveConfig(); err != nil {
