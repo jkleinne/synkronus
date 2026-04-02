@@ -9,8 +9,8 @@ import (
 	"strings"
 	"sync"
 	"synkronus/internal/config"
-	"synkronus/pkg/sql"
-	"synkronus/pkg/storage"
+	"synkronus/internal/domain/sql"
+	"synkronus/internal/domain/storage"
 )
 
 // ProviderConfigCheck defines the function signature for checking if a provider is configured

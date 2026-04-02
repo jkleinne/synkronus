@@ -1,8 +1,8 @@
 package gcp
 
 import (
-	"synkronus/pkg/common"
-	"synkronus/pkg/sql"
+	"synkronus/internal/domain"
+	domainsql "synkronus/internal/domain/sql"
 	"testing"
 	"time"
 
@@ -24,7 +24,7 @@ func TestMapInstance_NilSettings(t *testing.T) {
 	if instance.Name != "test-instance" {
 		t.Errorf("expected Name 'test-instance', got %q", instance.Name)
 	}
-	if instance.Provider != common.GCP {
+	if instance.Provider != domain.GCP {
 		t.Errorf("expected Provider GCP, got %v", instance.Provider)
 	}
 	if instance.Tier != "" {
@@ -58,9 +58,9 @@ func TestMapInstance_WithSettings(t *testing.T) {
 
 	instance := mapInstance(dbInstance, "my-project")
 
-	expected := sql.Instance{
+	expected := domainsql.Instance{
 		Name:            "prod-db",
-		Provider:        common.GCP,
+		Provider:        domain.GCP,
 		Region:          "europe-west1",
 		DatabaseVersion: "MYSQL_8_0",
 		State:           "RUNNABLE",

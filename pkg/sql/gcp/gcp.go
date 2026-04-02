@@ -6,16 +6,16 @@ import (
 	"fmt"
 	"log/slog"
 	"synkronus/internal/config"
+	"synkronus/internal/domain"
+	domainsql "synkronus/internal/domain/sql"
 	"synkronus/internal/provider/registry"
-	"synkronus/pkg/common"
-	"synkronus/pkg/sql"
 	"time"
 
 	sqladmin "google.golang.org/api/sqladmin/v1"
 )
 
 func init() {
-	registry.RegisterSqlProvider("gcp", registry.Registration[sql.SQL]{
+	registry.RegisterSqlProvider("gcp", registry.Registration[domainsql.SQL]{
 		ConfigCheck: isConfigured,
 		Initializer: initialize,
 	})
@@ -27,21 +27,21 @@ func isConfigured(cfg *config.Config) bool {
 }
 
 // Initializes the GCP SQL client from the configuration
-func initialize(ctx context.Context, cfg *config.Config, logger *slog.Logger) (sql.SQL, error) {
+func initialize(ctx context.Context, cfg *config.Config, logger *slog.Logger) (domainsql.SQL, error) {
 	if !isConfigured(cfg) {
 		return nil, fmt.Errorf("GCP configuration missing or incomplete")
 	}
 	return NewGCPSQL(ctx, cfg.GCP.Project, logger)
 }
 
-// GCPSql implements the sql.SQL interface for Google Cloud SQL
+// GCPSql implements the domainsql.SQL interface for Google Cloud SQL
 type GCPSql struct {
 	service   *sqladmin.Service
 	projectID string
 	logger    *slog.Logger
 }
 
-var _ sql.SQL = (*GCPSql)(nil)
+var _ domainsql.SQL = (*GCPSql)(nil)
 
 func NewGCPSQL(ctx context.Context, projectID string, logger *slog.Logger) (*GCPSql, error) {
 	svc, err := sqladmin.NewService(ctx)
@@ -56,11 +56,11 @@ func NewGCPSQL(ctx context.Context, projectID string, logger *slog.Logger) (*GCP
 	}, nil
 }
 
-func (g *GCPSql) ProviderName() common.Provider {
-	return common.GCP
+func (g *GCPSql) ProviderName() domain.Provider {
+	return domain.GCP
 }
 
-func (g *GCPSql) ListInstances(ctx context.Context) ([]sql.Instance, error) {
+func (g *GCPSql) ListInstances(ctx context.Context) ([]domainsql.Instance, error) {
 	g.logger.Debug("Starting GCP ListInstances operation")
 
 	resp, err := g.service.Instances.List(g.projectID).Context(ctx).Do()
@@ -68,7 +68,7 @@ func (g *GCPSql) ListInstances(ctx context.Context) ([]sql.Instance, error) {
 		return nil, fmt.Errorf("error listing Cloud SQL instances: %w", err)
 	}
 
-	var instances []sql.Instance
+	var instances []domainsql.Instance
 	for _, dbInstance := range resp.Items {
 		instances = append(instances, mapInstance(dbInstance, g.projectID))
 	}
@@ -76,12 +76,12 @@ func (g *GCPSql) ListInstances(ctx context.Context) ([]sql.Instance, error) {
 	return instances, nil
 }
 
-func (g *GCPSql) DescribeInstance(ctx context.Context, instanceName string) (sql.Instance, error) {
+func (g *GCPSql) DescribeInstance(ctx context.Context, instanceName string) (domainsql.Instance, error) {
 	g.logger.Debug("Starting GCP DescribeInstance operation", "instance", instanceName)
 
 	dbInstance, err := g.service.Instances.Get(g.projectID, instanceName).Context(ctx).Do()
 	if err != nil {
-		return sql.Instance{}, fmt.Errorf("error getting Cloud SQL instance '%s': %w", instanceName, err)
+		return domainsql.Instance{}, fmt.Errorf("error getting Cloud SQL instance '%s': %w", instanceName, err)
 	}
 
 	return mapInstance(dbInstance, g.projectID), nil
@@ -93,10 +93,10 @@ func (g *GCPSql) Close() error {
 }
 
 // mapInstance converts a GCP Cloud SQL DatabaseInstance to the domain model
-func mapInstance(dbInstance *sqladmin.DatabaseInstance, projectID string) sql.Instance {
-	instance := sql.Instance{
+func mapInstance(dbInstance *sqladmin.DatabaseInstance, projectID string) domainsql.Instance {
+	instance := domainsql.Instance{
 		Name:            dbInstance.Name,
-		Provider:        common.GCP,
+		Provider:        domain.GCP,
 		Region:          dbInstance.Region,
 		DatabaseVersion: dbInstance.DatabaseVersion,
 		State:           dbInstance.State,

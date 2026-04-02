@@ -4,8 +4,8 @@ package gcp
 import (
 	"context"
 	"fmt"
-	"synkronus/pkg/common"
-	"synkronus/pkg/storage"
+	"synkronus/internal/domain"
+	"synkronus/internal/domain/storage"
 
 	gcpstorage "cloud.google.com/go/storage"
 	"google.golang.org/api/iterator"
@@ -103,7 +103,7 @@ func mapObjectAttributes(attrs *gcpstorage.ObjectAttrs, encryption *storage.Encr
 	return storage.Object{
 		Key:                attrs.Name,
 		Bucket:             attrs.Bucket,
-		Provider:           common.GCP,
+		Provider:           domain.GCP,
 		Size:               attrs.Size,
 		StorageClass:       attrs.StorageClass,
 		LastModified:       attrs.Updated,

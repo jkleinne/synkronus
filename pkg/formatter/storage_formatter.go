@@ -4,8 +4,8 @@ package formatter
 import (
 	"fmt"
 	"strings"
-	"synkronus/pkg/common"
-	"synkronus/pkg/storage"
+	"synkronus/internal/domain"
+	"synkronus/internal/domain/storage"
 	"time"
 )
 
@@ -68,13 +68,13 @@ func (f *StorageFormatter) formatBucketOverviewSection(bucket storage.Bucket) st
 	overviewTable := NewTable([]string{"Parameter", "Value"})
 	overviewTable.AddRow([]string{"Provider", string(bucket.Provider)})
 	overviewTable.AddRow([]string{"Location", bucket.Location})
-	if bucket.Provider == common.GCP && bucket.LocationType != "" {
+	if bucket.Provider == domain.GCP && bucket.LocationType != "" {
 		overviewTable.AddRow([]string{"Location Type", bucket.LocationType})
 	}
 	overviewTable.AddRow([]string{"Default Storage Class", bucket.StorageClass})
 	overviewTable.AddRow([]string{"Usage (Total Bytes)", storage.FormatBytes(bucket.UsageBytes)})
 
-	if bucket.Provider == common.GCP && bucket.Autoclass != nil {
+	if bucket.Provider == domain.GCP && bucket.Autoclass != nil {
 		autoclassStatus := "Disabled"
 		if bucket.Autoclass.Enabled {
 			autoclassStatus = "Enabled"
@@ -86,7 +86,7 @@ func (f *StorageFormatter) formatBucketOverviewSection(bucket storage.Bucket) st
 	if bucket.RequesterPays {
 		requesterPaysStatus = "Enabled"
 	}
-	if bucket.Provider == common.GCP {
+	if bucket.Provider == domain.GCP {
 		overviewTable.AddRow([]string{"Requester Pays", requesterPaysStatus})
 	}
 
@@ -122,9 +122,9 @@ func (f *StorageFormatter) formatAccessControlSection(bucket storage.Bucket) str
 	if bucket.Logging != nil {
 		// Display a recognizable URI based on the provider
 		prefix := ""
-		if bucket.Provider == common.GCP {
+		if bucket.Provider == domain.GCP {
 			prefix = "gs://"
-		} else if bucket.Provider == common.AWS {
+		} else if bucket.Provider == domain.AWS {
 			prefix = "s3://"
 		}
 		configTable.AddRow([]string{"Usage Logging", fmt.Sprintf("%s%s/%s", prefix, bucket.Logging.LogBucket, bucket.Logging.LogObjectPrefix)})
@@ -222,7 +222,7 @@ func (f *StorageFormatter) formatDataProtectionSection(bucket storage.Bucket) st
 	} else {
 		// Default to assuming Google-managed for GCP if not specified
 		defaultEncryption := "Provider-managed"
-		if bucket.Provider == common.GCP {
+		if bucket.Provider == domain.GCP {
 			defaultEncryption = "Google-managed"
 		}
 		protectionTable.AddRow([]string{"Encryption (CMEK)", defaultEncryption})
@@ -402,7 +402,7 @@ func (f *StorageFormatter) formatObjectOverviewSection(object storage.Object) st
 	if object.MD5Hash != "" {
 		overviewTable.AddRow([]string{"MD5 Hash (Base64)", object.MD5Hash})
 	}
-	if object.Provider == common.GCP {
+	if object.Provider == domain.GCP {
 		if object.CRC32C != "" {
 			overviewTable.AddRow([]string{"CRC32C (Base64)", object.CRC32C})
 		}

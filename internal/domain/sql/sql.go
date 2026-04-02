@@ -1,9 +1,8 @@
-// File: pkg/sql/sql.go
 package sql
 
 import (
 	"context"
-	"synkronus/pkg/common"
+	"synkronus/internal/domain"
 )
 
 // SQL defines the interface for interacting with managed SQL database instances
@@ -16,7 +15,7 @@ type SQL interface {
 	DescribeInstance(ctx context.Context, instanceName string) (Instance, error)
 
 	// ProviderName returns the cloud provider identifier
-	ProviderName() common.Provider
+	ProviderName() domain.Provider
 
 	// Close cleans up any underlying resources (e.g., HTTP clients)
 	Close() error

@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"log/slog"
 	"synkronus/internal/config"
+	"synkronus/internal/domain"
+	"synkronus/internal/domain/storage"
 	"synkronus/internal/provider/registry"
-	"synkronus/pkg/common"
-	"synkronus/pkg/storage"
 )
 
 func init() {
@@ -45,8 +45,8 @@ func NewAWSStorage(region string, logger *slog.Logger) *AWSStorage {
 	}
 }
 
-func (s *AWSStorage) ProviderName() common.Provider {
-	return common.AWS
+func (s *AWSStorage) ProviderName() domain.Provider {
+	return domain.AWS
 }
 
 func (s *AWSStorage) ListBuckets(ctx context.Context) ([]storage.Bucket, error) {

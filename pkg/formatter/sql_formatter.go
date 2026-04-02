@@ -4,7 +4,7 @@ package formatter
 import (
 	"fmt"
 	"strings"
-	"synkronus/pkg/sql"
+	"synkronus/internal/domain/sql"
 	"time"
 )
 

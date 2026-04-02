@@ -8,9 +8,9 @@ import (
 	"log/slog"
 	"sync"
 	"synkronus/internal/config"
+	"synkronus/internal/domain"
+	"synkronus/internal/domain/storage"
 	"synkronus/internal/provider/registry"
-	"synkronus/pkg/common"
-	"synkronus/pkg/storage"
 
 	monitoring "cloud.google.com/go/monitoring/apiv3/v2"
 	gcpstorage "cloud.google.com/go/storage"
@@ -60,8 +60,8 @@ func NewGCPStorage(ctx context.Context, projectID string, logger *slog.Logger) (
 	}, nil
 }
 
-func (g *GCPStorage) ProviderName() common.Provider {
-	return common.GCP
+func (g *GCPStorage) ProviderName() domain.Provider {
+	return domain.GCP
 }
 
 func (g *GCPStorage) getMonitoringClient(ctx context.Context) (*monitoring.MetricClient, error) {

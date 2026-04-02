@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"log/slog"
 	"sort"
-	"synkronus/pkg/common"
-	"synkronus/pkg/storage"
+	"synkronus/internal/domain"
+	"synkronus/internal/domain/storage"
 
 	gcpstorage "cloud.google.com/go/storage"
 	"google.golang.org/api/googleapi"
@@ -45,7 +45,7 @@ func (g *GCPStorage) ListBuckets(ctx context.Context) ([]storage.Bucket, error) 
 
 		buckets = append(buckets, storage.Bucket{
 			Name:         bucketAttrs.Name,
-			Provider:     common.GCP,
+			Provider:     domain.GCP,
 			Location:     bucketAttrs.Location,
 			StorageClass: bucketAttrs.StorageClass,
 			CreatedAt:    bucketAttrs.Created,
@@ -96,7 +96,7 @@ func (g *GCPStorage) DescribeBucket(ctx context.Context, bucketName string) (sto
 
 	details := storage.Bucket{
 		Name:                     attrs.Name,
-		Provider:                 common.GCP,
+		Provider:                 domain.GCP,
 		Location:                 attrs.Location,
 		LocationType:             attrs.LocationType,
 		StorageClass:             attrs.StorageClass,

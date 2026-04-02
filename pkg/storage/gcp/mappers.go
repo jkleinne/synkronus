@@ -4,7 +4,7 @@ package gcp
 import (
 	"encoding/base64"
 	"fmt"
-	"synkronus/pkg/storage"
+	"synkronus/internal/domain/storage"
 
 	gcpstorage "cloud.google.com/go/storage"
 )

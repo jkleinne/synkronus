@@ -1,6 +1,6 @@
-// File: pkg/common/provider.go
-package common
+package domain
 
+// Provider identifies a cloud provider (e.g., GCP, AWS).
 type Provider string
 
 const (

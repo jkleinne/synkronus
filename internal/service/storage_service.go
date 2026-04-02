@@ -7,7 +7,7 @@ import (
 	"log/slog"
 
 	"synkronus/internal/provider/factory"
-	"synkronus/pkg/storage"
+	"synkronus/internal/domain/storage"
 )
 
 type StorageService struct {

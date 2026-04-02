@@ -1,11 +1,13 @@
-// File: pkg/storage/storage.go
 package storage
 
 import (
 	"context"
-	"synkronus/pkg/common"
+	"synkronus/internal/domain"
 )
 
+// Storage defines the interface for interacting with cloud storage buckets
+// and objects across providers. Each provider implementation must satisfy
+// this interface.
 type Storage interface {
 	// --- Bucket Operations ---
 	ListBuckets(ctx context.Context) ([]Bucket, error)
@@ -21,7 +23,7 @@ type Storage interface {
 
 	DescribeObject(ctx context.Context, bucketName string, objectKey string) (Object, error)
 
-	ProviderName() common.Provider
+	ProviderName() domain.Provider
 
 	Close() error
 }

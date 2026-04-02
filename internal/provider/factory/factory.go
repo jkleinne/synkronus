@@ -9,8 +9,8 @@ import (
 	"strings"
 	"synkronus/internal/config"
 	"synkronus/internal/provider/registry"
-	"synkronus/pkg/sql"
-	"synkronus/pkg/storage"
+	"synkronus/internal/domain/sql"
+	"synkronus/internal/domain/storage"
 )
 
 type Factory struct {
