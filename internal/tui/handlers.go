@@ -173,6 +173,23 @@ func (m *Model) handleOverlaySubmit() (tea.Model, tea.Cmd) {
 		m.config.loading = true
 		m.textInput.Reset()
 		return m, setConfigCmd(m.configManager, key, value)
+
+	case OverlayDownloadPath:
+		dir := strings.TrimSpace(m.storage.downloadDir)
+		if dir == "" {
+			return m, nil
+		}
+		m.overlay = OverlayNone
+		m.storage.loading = true
+		m.err = nil
+		m.textInput.Reset()
+		return m, downloadObjectCmd(
+			m.storageService,
+			m.storage.selectedBucket.Name,
+			m.storage.downloadingKey,
+			strings.ToLower(string(m.storage.selectedBucket.Provider)),
+			dir,
+		)
 	}
 
 	return m, nil
@@ -194,6 +211,8 @@ func (m *Model) syncTextInputToField() {
 		} else {
 			m.config.editValue = m.textInput.Value()
 		}
+	case OverlayDownloadPath:
+		m.storage.downloadDir = m.textInput.Value()
 	}
 }
 
@@ -512,15 +531,11 @@ func (m *Model) handleObjectListKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				objIdx := m.storage.cursor - prefixCount
 				if objIdx < len(m.storage.objects.Objects) {
 					obj := m.storage.objects.Objects[objIdx]
-					m.storage.loading = true
 					m.storage.downloadingKey = obj.Key
-					m.err = nil
-					return m, downloadObjectCmd(
-						m.storageService,
-						m.storage.selectedBucket.Name,
-						obj.Key,
-						strings.ToLower(string(m.storage.selectedBucket.Provider)),
-					)
+					m.storage.downloadDir = "./"
+					m.textInput.SetValue("./")
+					m.textInput.Focus()
+					m.overlay = OverlayDownloadPath
 				}
 			}
 		}
@@ -542,15 +557,11 @@ func (m *Model) handleObjectDetailKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.viewState = ViewStorageObjectList
 		m.err = nil
 	case "w":
-		m.storage.loading = true
 		m.storage.downloadingKey = m.storage.selectedObject.Key
-		m.err = nil
-		return m, downloadObjectCmd(
-			m.storageService,
-			m.storage.selectedBucket.Name,
-			m.storage.selectedObject.Key,
-			strings.ToLower(string(m.storage.selectedBucket.Provider)),
-		)
+		m.storage.downloadDir = "./"
+		m.textInput.SetValue("./")
+		m.textInput.Focus()
+		m.overlay = OverlayDownloadPath
 	case "j", keyDown:
 		m.storage.scrollOffset++
 	case "k", keyUp:
