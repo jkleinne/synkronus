@@ -186,10 +186,32 @@ func (g *GCPStorage) getACLs(ctx context.Context, bucketHandle *gcpstorage.Bucke
 	return acls, nil
 }
 
-func (g *GCPStorage) CreateBucket(ctx context.Context, bucketName string, location string) error {
-	bucket := g.client.Bucket(bucketName)
+func (g *GCPStorage) CreateBucket(ctx context.Context, opts storage.CreateBucketOptions) error {
+	bucket := g.client.Bucket(opts.Name)
 	attrs := &gcpstorage.BucketAttrs{
-		Location: location,
+		Location: opts.Location,
+	}
+	if opts.StorageClass != "" {
+		attrs.StorageClass = opts.StorageClass
+	}
+	if opts.Labels != nil {
+		attrs.Labels = opts.Labels
+	}
+	if opts.Versioning != nil {
+		attrs.VersioningEnabled = *opts.Versioning
+	}
+	if opts.UniformBucketLevelAccess != nil {
+		attrs.UniformBucketLevelAccess = gcpstorage.UniformBucketLevelAccess{
+			Enabled: *opts.UniformBucketLevelAccess,
+		}
+	}
+	if opts.PublicAccessPrevention != nil {
+		switch *opts.PublicAccessPrevention {
+		case "enforced":
+			attrs.PublicAccessPrevention = gcpstorage.PublicAccessPreventionEnforced
+		case "inherited":
+			attrs.PublicAccessPrevention = gcpstorage.PublicAccessPreventionInherited
+		}
 	}
 	if err := bucket.Create(ctx, g.projectID, attrs); err != nil {
 		return fmt.Errorf("failed to create bucket: %w", err)

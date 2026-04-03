@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 	"strings"
+	"synkronus/internal/domain/storage"
 	"testing"
 )
 
@@ -21,7 +22,9 @@ func TestAllMethodsReturnNotImplemented(t *testing.T) {
 	}{
 		{"ListBuckets", func() error { _, err := s.ListBuckets(ctx); return err }},
 		{"DescribeBucket", func() error { _, err := s.DescribeBucket(ctx, "b"); return err }},
-		{"CreateBucket", func() error { return s.CreateBucket(ctx, "b", "us-east-1") }},
+		{"CreateBucket", func() error {
+			return s.CreateBucket(ctx, storage.CreateBucketOptions{Name: "b", Location: "us-east-1"})
+		}},
 		{"DeleteBucket", func() error { return s.DeleteBucket(ctx, "b") }},
 		{"ListObjects", func() error { _, err := s.ListObjects(ctx, "b", ""); return err }},
 		{"DescribeObject", func() error { _, err := s.DescribeObject(ctx, "b", "k"); return err }},

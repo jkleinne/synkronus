@@ -57,7 +57,7 @@ func (s *AWSStorage) DescribeBucket(ctx context.Context, bucketName string) (sto
 	return storage.Bucket{}, fmt.Errorf("AWS DescribeBucket is not yet implemented")
 }
 
-func (s *AWSStorage) CreateBucket(ctx context.Context, bucketName string, location string) error {
+func (s *AWSStorage) CreateBucket(ctx context.Context, opts storage.CreateBucketOptions) error {
 	return fmt.Errorf("AWS CreateBucket is not yet implemented")
 }
 
