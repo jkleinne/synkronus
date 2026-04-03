@@ -18,6 +18,8 @@ const (
 	keyEnter    = "enter"
 	keyTab      = "tab"
 	keyShiftTab = "shift+tab"
+	keyLeft     = "left"
+	keyRight    = "right"
 )
 
 // createFormFieldCount is the number of fields in the create-bucket overlay.
@@ -61,6 +63,12 @@ func (m *Model) handleOverlayKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			}
 			return m, nil
 		default:
+			// Provider field (1): cycle with left/right instead of free text.
+			if m.overlay == OverlayCreateBucket && m.storage.createField == 1 && len(m.storage.availableProviders) > 0 {
+				m.storage.createProvider = m.cycleProvider(key)
+				m.textInput.SetValue(m.storage.createProvider)
+				return m, nil
+			}
 			// Forward all other keys to the textinput bubble.
 			var cmd tea.Cmd
 			m.textInput, cmd = m.textInput.Update(msg)
@@ -165,7 +173,10 @@ func (m *Model) syncTextInputToField() {
 		case 0:
 			m.storage.createName = m.textInput.Value()
 		case 1:
-			m.storage.createProvider = m.textInput.Value()
+			// Provider is a selector field — only sync from textinput if no providers are available (fallback).
+			if len(m.storage.availableProviders) == 0 {
+				m.storage.createProvider = m.textInput.Value()
+			}
 		case 2:
 			m.storage.createLocation = m.textInput.Value()
 		case 3:
@@ -211,6 +222,27 @@ func (m *Model) loadFieldIntoTextInput() {
 		m.textInput.SetValue(m.storage.createPublicAccessPrevention)
 	}
 	m.textInput.Focus()
+}
+
+// cycleProvider advances or retreats the provider selection based on the key.
+// Left/right cycle through available providers; other keys are ignored.
+func (m *Model) cycleProvider(key string) string {
+	providers := m.storage.availableProviders
+	current := m.storage.createProvider
+	idx := 0
+	for i, p := range providers {
+		if p == current {
+			idx = i
+			break
+		}
+	}
+	switch key {
+	case keyLeft:
+		idx = (idx - 1 + len(providers)) % len(providers)
+	case keyRight:
+		idx = (idx + 1) % len(providers)
+	}
+	return providers[idx]
 }
 
 // parseLabels parses a "key=value,key=value" string into a map.
@@ -314,13 +346,18 @@ func (m *Model) handleStorageListKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 	case "c":
 		m.storage.createName = ""
-		m.storage.createProvider = ""
 		m.storage.createLocation = ""
 		m.storage.createStorageClass = ""
 		m.storage.createLabels = ""
 		m.storage.createVersioning = ""
 		m.storage.createUniformAccess = ""
 		m.storage.createPublicAccessPrevention = ""
+		m.storage.availableProviders = m.factory.GetConfiguredProviders()
+		if len(m.storage.availableProviders) > 0 {
+			m.storage.createProvider = m.storage.availableProviders[0]
+		} else {
+			m.storage.createProvider = ""
+		}
 		m.storage.createField = 0
 		m.textInput.SetValue("")
 		m.textInput.Focus()

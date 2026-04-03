@@ -233,6 +233,39 @@ func TestHandleOverlayKeys_TabCyclesCreateFields(t *testing.T) {
 	}
 }
 
+func TestCycleProvider(t *testing.T) {
+	m := newTestModel()
+	m.storage.availableProviders = []string{"aws", "gcp"}
+	m.storage.createProvider = "aws"
+
+	// Right cycles forward: aws -> gcp
+	result := m.cycleProvider("right")
+	if result != "gcp" {
+		t.Errorf("cycleProvider(right) from aws = %q, want gcp", result)
+	}
+
+	// Update state and cycle again: gcp -> aws (wraps)
+	m.storage.createProvider = "gcp"
+	result = m.cycleProvider("right")
+	if result != "aws" {
+		t.Errorf("cycleProvider(right) from gcp = %q, want aws (wrap)", result)
+	}
+
+	// Left cycles backward: aws -> gcp (wraps)
+	m.storage.createProvider = "aws"
+	result = m.cycleProvider("left")
+	if result != "gcp" {
+		t.Errorf("cycleProvider(left) from aws = %q, want gcp (wrap)", result)
+	}
+
+	// Unknown key returns current provider unchanged
+	m.storage.createProvider = "aws"
+	result = m.cycleProvider("x")
+	if result != "aws" {
+		t.Errorf("cycleProvider(x) = %q, want aws (unchanged)", result)
+	}
+}
+
 func TestHandleOverlayKeys_TabCyclesConfigAddFields(t *testing.T) {
 	m := newTestModel()
 	m.overlay = OverlayConfigAdd

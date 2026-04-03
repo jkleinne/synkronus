@@ -76,6 +76,7 @@ type storageState struct {
 	createName                   string
 	createProvider               string
 	createLocation               string
+	availableProviders           []string
 	createStorageClass           string
 	createLabels                 string
 	createVersioning             string // "yes"/"no"/""
@@ -366,6 +367,8 @@ func (m *Model) renderOverlay() string {
 			ui.CreateBucketFormFields{
 				Name:                   m.storage.createName,
 				Provider:               m.storage.createProvider,
+				ProviderIsSelector:     len(m.storage.availableProviders) > 0,
+				AvailableProviders:     m.storage.availableProviders,
 				Location:               m.storage.createLocation,
 				StorageClass:           m.storage.createStorageClass,
 				Labels:                 m.storage.createLabels,

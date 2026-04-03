@@ -237,6 +237,8 @@ func buildObjectMetadataSection(obj storage.Object) (KeyValueSection, bool) {
 type CreateBucketFormFields struct {
 	Name                   string
 	Provider               string
+	ProviderIsSelector     bool     // true when providers are available for cycling
+	AvailableProviders     []string // configured provider names for display
 	Location               string
 	StorageClass           string
 	Labels                 string
@@ -253,9 +255,14 @@ func RenderCreateBucketForm(fields CreateBucketFormFields, activeField int, text
 		value string
 		hint  string
 	}
+	providerHint := ""
+	if len(fields.AvailableProviders) > 0 {
+		providerHint = "(◀/▶ to select)"
+	}
+
 	entries := []entry{
 		{"Name", fields.Name, ""},
-		{"Provider", fields.Provider, ""},
+		{"Provider", fields.Provider, providerHint},
 		{"Location", fields.Location, ""},
 		{"Storage Class", fields.StorageClass, "(STANDARD, NEARLINE, COLDLINE, ARCHIVE)"},
 		{"Labels", fields.Labels, "(key=value,key=value)"},
@@ -267,8 +274,15 @@ func RenderCreateBucketForm(fields CreateBucketFormFields, activeField int, text
 	var lines []string
 	for i, e := range entries {
 		if i == activeField {
-			labelStr := SectionHeaderStyle.Render(e.label + ":")
-			lines = append(lines, labelStr+" "+textInputView)
+			// Provider field uses a selector instead of free text input.
+			if i == 1 && fields.ProviderIsSelector {
+				labelStr := SectionHeaderStyle.Render(e.label + ":")
+				selector := SectionHeaderStyle.Render("◀ " + fields.Provider + " ▶")
+				lines = append(lines, labelStr+" "+selector)
+			} else {
+				labelStr := SectionHeaderStyle.Render(e.label + ":")
+				lines = append(lines, labelStr+" "+textInputView)
+			}
 		} else {
 			labelStr := TextDimStyle.Render(e.label + ":")
 			val := e.value

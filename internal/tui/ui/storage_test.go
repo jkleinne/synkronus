@@ -178,15 +178,36 @@ func TestRenderCreateBucketFormShowsHintsForEmptyOptionalFields(t *testing.T) {
 }
 
 func TestRenderCreateBucketFormHighlightsActiveField(t *testing.T) {
-	// Field 1 (Provider) is active.
+	// Field 2 (Location) is active — should show text input cursor.
 	fields := CreateBucketFormFields{
 		Name:     "my-bucket",
 		Provider: "gcp",
 		Location: "us-central1",
 	}
-	result := RenderCreateBucketForm(fields, 1, "[cursor]")
+	result := RenderCreateBucketForm(fields, 2, "[cursor]")
 	if !strings.Contains(result, "[cursor]") {
 		t.Error("create form should render textInputView next to the active field")
+	}
+}
+
+func TestRenderCreateBucketFormProviderSelector(t *testing.T) {
+	fields := CreateBucketFormFields{
+		Name:               "my-bucket",
+		Provider:           "gcp",
+		ProviderIsSelector: true,
+		AvailableProviders: []string{"gcp", "aws"},
+		Location:           "us-central1",
+	}
+	// Provider field (1) active — should show selector arrows, not text cursor.
+	result := RenderCreateBucketForm(fields, 1, "[cursor]")
+	if !strings.Contains(result, "◀") || !strings.Contains(result, "▶") {
+		t.Error("active provider field should show selector arrows")
+	}
+	if strings.Contains(result, "[cursor]") {
+		t.Error("active provider field should not show text cursor when selector is enabled")
+	}
+	if !strings.Contains(result, "gcp") {
+		t.Error("active provider field should show selected provider name")
 	}
 }
 
