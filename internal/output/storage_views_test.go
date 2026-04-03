@@ -364,6 +364,165 @@ func TestObjectDetailView_ZeroCreatedAt(t *testing.T) {
 	}
 }
 
+func TestBucketListView_ZeroCreatedAt(t *testing.T) {
+	buckets := BucketListView{
+		{
+			Name:         "aws-bucket",
+			Provider:     domain.AWS,
+			Location:     "us-east-1",
+			StorageClass: "STANDARD",
+			UsageBytes:   -1,
+			// CreatedAt is zero value
+		},
+	}
+	result := buckets.RenderTable()
+	if strings.Contains(result, "0001") {
+		t.Errorf("expected zero time to render as N/A, got:\n%s", result)
+	}
+	if !strings.Contains(result, "N/A") {
+		t.Errorf("expected 'N/A' for zero CreatedAt, got:\n%s", result)
+	}
+}
+
+func TestBucketDetailView_ZeroTimestamps(t *testing.T) {
+	bucket := storage.Bucket{
+		Name:         "aws-bucket",
+		Provider:     domain.AWS,
+		Location:     "us-east-1",
+		StorageClass: "STANDARD",
+		UsageBytes:   -1,
+		// Both CreatedAt and UpdatedAt are zero
+	}
+	view := BucketDetailView{bucket}
+	result := view.RenderTable()
+
+	// Should contain N/A for both timestamps, not "0001-01-01"
+	if strings.Contains(result, "0001") {
+		t.Errorf("expected zero times to render as N/A, got:\n%s", result)
+	}
+}
+
+func TestBucketDetailView_AWSPolicyStatements(t *testing.T) {
+	bucket := storage.Bucket{
+		Name:         "policy-bucket",
+		Provider:     domain.AWS,
+		Location:     "us-east-1",
+		StorageClass: "STANDARD",
+		IAMPolicy: &storage.IAMPolicy{
+			Statements: []storage.PolicyStatement{
+				{
+					Effect:     "Allow",
+					Principals: []string{"*"},
+					Actions:    []string{"s3:GetObject"},
+					Resources:  []string{"arn:aws:s3:::policy-bucket/*"},
+				},
+			},
+		},
+	}
+	view := BucketDetailView{bucket}
+	result := view.RenderTable()
+
+	expectedValues := []string{
+		"Bucket Policy Statements",
+		"Allow",
+		"s3:GetObject",
+		"arn:aws:s3:::policy-bucket/*",
+	}
+	for _, v := range expectedValues {
+		if !strings.Contains(result, v) {
+			t.Errorf("expected output to contain %q, got:\n%s", v, result)
+		}
+	}
+}
+
+func TestBucketDetailView_AWSPolicyStatementsWithConditions(t *testing.T) {
+	bucket := storage.Bucket{
+		Name:         "cond-bucket",
+		Provider:     domain.AWS,
+		Location:     "us-east-1",
+		StorageClass: "STANDARD",
+		IAMPolicy: &storage.IAMPolicy{
+			Statements: []storage.PolicyStatement{
+				{
+					Effect:     "Allow",
+					Principals: []string{"*"},
+					Actions:    []string{"s3:GetObject"},
+					Resources:  []string{"arn:aws:s3:::cond-bucket/*"},
+					Conditions: map[string]map[string][]string{
+						"StringLike": {"s3:prefix": {"home/", "home/*"}},
+					},
+				},
+			},
+		},
+	}
+	view := BucketDetailView{bucket}
+	result := view.RenderTable()
+
+	if !strings.Contains(result, "1 condition(s) present") {
+		t.Errorf("expected condition count note, got:\n%s", result)
+	}
+}
+
+func TestBucketDetailView_NilUBLA(t *testing.T) {
+	bucket := storage.Bucket{
+		Name:                     "aws-bucket",
+		Provider:                 domain.AWS,
+		Location:                 "us-east-1",
+		StorageClass:             "STANDARD",
+		UniformBucketLevelAccess: nil,
+	}
+	view := BucketDetailView{bucket}
+	result := view.RenderTable()
+
+	// Should not contain UBLA-related text
+	if strings.Contains(result, "Uniform") {
+		t.Errorf("expected no UBLA text for nil, got:\n%s", result)
+	}
+	// Should not crash — this is the main assertion
+}
+
+func TestObjectDetailView_AWSVersionID(t *testing.T) {
+	object := storage.Object{
+		Key:       "versioned.txt",
+		Bucket:    "my-bucket",
+		Provider:  domain.AWS,
+		VersionID: "abc123-version-id",
+	}
+	view := ObjectDetailView{object}
+	result := view.RenderTable()
+
+	if !strings.Contains(result, "Version ID") {
+		t.Errorf("expected 'Version ID' row, got:\n%s", result)
+	}
+	if !strings.Contains(result, "abc123-version-id") {
+		t.Errorf("expected version ID value, got:\n%s", result)
+	}
+}
+
+func TestBucketDetailView_LifecycleWithPrefix(t *testing.T) {
+	bucket := storage.Bucket{
+		Name:         "prefix-bucket",
+		Provider:     domain.AWS,
+		Location:     "us-east-1",
+		StorageClass: "STANDARD",
+		LifecycleRules: []storage.LifecycleRule{
+			{
+				Action: "Delete",
+				Condition: storage.LifecycleCondition{
+					Age:    90,
+					Prefix: "logs/",
+				},
+			},
+		},
+	}
+	view := BucketDetailView{bucket}
+	result := view.RenderTable()
+
+	if !strings.Contains(result, "Prefix = logs/") {
+		t.Errorf("expected 'Prefix = logs/' condition, got:\n%s", result)
+	}
+}
+
 func TestBucketDetailView_IAMPolicyWithConditions(t *testing.T) {
 	bucket := storage.Bucket{
 		Name:         "cond-bucket",
