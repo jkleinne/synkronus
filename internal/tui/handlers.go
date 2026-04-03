@@ -121,7 +121,7 @@ func (m *Model) handleOverlaySubmit() (tea.Model, tea.Cmd) {
 			f := false
 			opts.UniformBucketLevelAccess = &f
 		}
-		if v := strings.TrimSpace(strings.ToLower(m.storage.createPublicAccessPrevention)); v == "enforced" || v == "inherited" {
+		if v := strings.TrimSpace(strings.ToLower(m.storage.createPublicAccessPrevention)); v == storage.PublicAccessPreventionEnforced || v == storage.PublicAccessPreventionInherited {
 			opts.PublicAccessPrevention = &v
 		}
 		m.overlay = OverlayNone

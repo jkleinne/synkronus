@@ -48,7 +48,7 @@ func newCreateBucketCmd() *cobra.Command {
 			}
 			if cmd.Flags().Changed(flags.PublicAccessPreventionFlag) {
 				normalized := strings.ToLower(publicAccessPrevention)
-				if normalized != "enforced" && normalized != "inherited" {
+				if normalized != storage.PublicAccessPreventionEnforced && normalized != storage.PublicAccessPreventionInherited {
 					return fmt.Errorf("invalid --public-access-prevention value %q: must be \"enforced\" or \"inherited\"", publicAccessPrevention)
 				}
 				opts.PublicAccessPrevention = &normalized

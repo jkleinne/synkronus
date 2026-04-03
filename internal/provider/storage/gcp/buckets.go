@@ -207,9 +207,9 @@ func (g *GCPStorage) CreateBucket(ctx context.Context, opts storage.CreateBucket
 	}
 	if opts.PublicAccessPrevention != nil {
 		switch *opts.PublicAccessPrevention {
-		case "enforced":
+		case storage.PublicAccessPreventionEnforced:
 			attrs.PublicAccessPrevention = gcpstorage.PublicAccessPreventionEnforced
-		case "inherited":
+		case storage.PublicAccessPreventionInherited:
 			attrs.PublicAccessPrevention = gcpstorage.PublicAccessPreventionInherited
 		}
 	}

@@ -361,6 +361,64 @@ func TestHandleOverlaySubmit_ConfigAdd_EmptyFields(t *testing.T) {
 	}
 }
 
+func TestParseLabels(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  map[string]string
+	}{
+		{"empty", "", nil},
+		{"single", "env=prod", map[string]string{"env": "prod"}},
+		{"multiple", "env=prod,team=data", map[string]string{"env": "prod", "team": "data"}},
+		{"spaces", " env = prod , team = data ", map[string]string{"env": "prod", "team": "data"}},
+		{"no_equals", "invalid", nil},
+		{"trailing_comma", "env=prod,", map[string]string{"env": "prod"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := parseLabels(tt.input)
+			if tt.want == nil {
+				if got != nil {
+					t.Errorf("parseLabels(%q) = %v, want nil", tt.input, got)
+				}
+				return
+			}
+			if len(got) != len(tt.want) {
+				t.Errorf("parseLabels(%q) has %d entries, want %d", tt.input, len(got), len(tt.want))
+				return
+			}
+			for k, v := range tt.want {
+				if got[k] != v {
+					t.Errorf("parseLabels(%q)[%q] = %q, want %q", tt.input, k, got[k], v)
+				}
+			}
+		})
+	}
+}
+
+func TestHandleOverlaySubmit_CreateBucket_WithOptionalFields(t *testing.T) {
+	m := newTestModel()
+	m.overlay = OverlayCreateBucket
+	m.storage.createName = "new-bucket"
+	m.storage.createProvider = "gcp"
+	m.storage.createLocation = "us-central1"
+	m.storage.createStorageClass = "nearline"
+	m.storage.createLabels = "env=prod,team=data"
+	m.storage.createVersioning = "yes"
+	m.storage.createUniformAccess = "yes"
+	m.storage.createPublicAccessPrevention = "enforced"
+	m.storage.createField = 0
+	m.textInput.SetValue("new-bucket")
+
+	_, cmd := m.handleOverlaySubmit()
+	if cmd == nil {
+		t.Error("expected non-nil cmd when all fields are provided")
+	}
+	if m.overlay != OverlayNone {
+		t.Errorf("overlay = %d, want OverlayNone after submit", m.overlay)
+	}
+}
+
 // --- Data message handlers ---
 
 func TestHandleBucketsLoaded_Success(t *testing.T) {

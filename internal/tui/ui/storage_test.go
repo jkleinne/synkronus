@@ -150,13 +150,30 @@ func TestRenderObjectDetailNoHTTPHeaders(t *testing.T) {
 
 func TestRenderCreateBucketForm(t *testing.T) {
 	fields := CreateBucketFormFields{
-		Name:     "my-bucket",
-		Provider: "gcp",
-		Location: "us-central1",
+		Name: "my-bucket", Provider: "gcp", Location: "us-central1",
 	}
 	result := RenderCreateBucketForm(fields, 0, "[cursor]")
 	if !strings.Contains(result, "Name") {
 		t.Error("create form should show Name label")
+	}
+	if !strings.Contains(result, "Storage Class") {
+		t.Error("create form should show Storage Class label")
+	}
+	if !strings.Contains(result, "Public Access Prevention") {
+		t.Error("create form should show Public Access Prevention label")
+	}
+}
+
+func TestRenderCreateBucketFormShowsHintsForEmptyOptionalFields(t *testing.T) {
+	fields := CreateBucketFormFields{
+		Name: "my-bucket", Provider: "gcp", Location: "us-central1",
+	}
+	result := RenderCreateBucketForm(fields, 0, "[cursor]")
+	if !strings.Contains(result, "STANDARD") {
+		t.Error("empty storage class should show hint with valid values")
+	}
+	if !strings.Contains(result, "yes/no") {
+		t.Error("empty versioning should show yes/no hint")
 	}
 }
 
