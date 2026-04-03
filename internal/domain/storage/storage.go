@@ -14,7 +14,7 @@ type Storage interface {
 
 	DescribeBucket(ctx context.Context, bucketName string) (Bucket, error)
 
-	CreateBucket(ctx context.Context, bucketName string, location string) error
+	CreateBucket(ctx context.Context, opts CreateBucketOptions) error
 
 	DeleteBucket(ctx context.Context, bucketName string) error
 

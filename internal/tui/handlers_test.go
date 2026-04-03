@@ -223,13 +223,233 @@ func TestHandleOverlayKeys_TabCyclesCreateFields(t *testing.T) {
 	m.overlay = OverlayCreateBucket
 	m.storage.createField = 0
 
-	// Cycle through 0 -> 1 -> 2 -> 0
-	expected := []int{1, 2, 0}
+	// Cycle through all 8 fields (0 -> 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 0)
+	expected := []int{1, 2, 3, 4, 5, 6, 7, 0}
 	for i, want := range expected {
 		_, _ = m.handleOverlayKeys(tea.KeyMsg{Type: tea.KeyTab})
 		if m.storage.createField != want {
 			t.Errorf("step %d: createField = %d, want %d", i, m.storage.createField, want)
 		}
+	}
+}
+
+func TestCycleOption(t *testing.T) {
+	options := []string{"", "STANDARD", "NEARLINE", "COLDLINE"}
+
+	// Right cycles forward
+	if got := cycleOption(options, "", "right"); got != "STANDARD" {
+		t.Errorf("cycleOption(right) from empty = %q, want STANDARD", got)
+	}
+	if got := cycleOption(options, "STANDARD", "right"); got != "NEARLINE" {
+		t.Errorf("cycleOption(right) from STANDARD = %q, want NEARLINE", got)
+	}
+
+	// Right wraps: COLDLINE -> ""
+	if got := cycleOption(options, "COLDLINE", "right"); got != "" {
+		t.Errorf("cycleOption(right) from COLDLINE = %q, want empty (wrap)", got)
+	}
+
+	// Left cycles backward: "" -> COLDLINE (wraps)
+	if got := cycleOption(options, "", "left"); got != "COLDLINE" {
+		t.Errorf("cycleOption(left) from empty = %q, want COLDLINE (wrap)", got)
+	}
+
+	// Unknown key returns current value unchanged
+	if got := cycleOption(options, "STANDARD", "x"); got != "STANDARD" {
+		t.Errorf("cycleOption(x) = %q, want STANDARD (unchanged)", got)
+	}
+}
+
+func TestGetCreateFieldOptions(t *testing.T) {
+	m := newTestModel()
+	m.storage.availableProviders = []string{"gcp", "aws"}
+
+	// Provider (1) returns dynamic options
+	if opts := m.getCreateFieldOptions(1); len(opts) != 2 || opts[0] != "gcp" {
+		t.Errorf("field 1 options = %v, want [gcp aws]", opts)
+	}
+
+	// Storage Class (3) returns static options
+	if opts := m.getCreateFieldOptions(3); len(opts) != 5 || opts[1] != "STANDARD" {
+		t.Errorf("field 3 options = %v, want 5 items starting with empty+STANDARD", opts)
+	}
+
+	// Free-text fields (0, 2, 4) return nil
+	for _, field := range []int{0, 2, 4} {
+		if opts := m.getCreateFieldOptions(field); opts != nil {
+			t.Errorf("field %d should be free-text (nil options), got %v", field, opts)
+		}
+	}
+
+	// Selector fields (5, 6, 7) return options
+	for _, field := range []int{5, 6, 7} {
+		if opts := m.getCreateFieldOptions(field); opts == nil {
+			t.Errorf("field %d should be a selector, got nil options", field)
+		}
+	}
+}
+
+func TestGetCreateFieldValue_ReturnsCorrectValues(t *testing.T) {
+	m := newTestModel()
+	m.storage.createName = "my-bucket"
+	m.storage.createProvider = "gcp"
+	m.storage.createLocation = "us-central1"
+	m.storage.createStorageClass = "STANDARD"
+	m.storage.createLabels = "env=prod"
+	m.storage.createVersioning = "yes"
+	m.storage.createUniformAccess = "no"
+	m.storage.createPublicAccessPrevention = "enforced"
+
+	expected := []struct {
+		field int
+		want  string
+	}{
+		{0, "my-bucket"},
+		{1, "gcp"},
+		{2, "us-central1"},
+		{3, "STANDARD"},
+		{4, "env=prod"},
+		{5, "yes"},
+		{6, "no"},
+		{7, "enforced"},
+	}
+	for _, tt := range expected {
+		got := m.getCreateFieldValue(tt.field)
+		if got != tt.want {
+			t.Errorf("getCreateFieldValue(%d) = %q, want %q", tt.field, got, tt.want)
+		}
+	}
+}
+
+func TestGetCreateFieldValue_OutOfRange_ReturnsEmpty(t *testing.T) {
+	m := newTestModel()
+	if got := m.getCreateFieldValue(-1); got != "" {
+		t.Errorf("getCreateFieldValue(-1) = %q, want empty", got)
+	}
+	if got := m.getCreateFieldValue(99); got != "" {
+		t.Errorf("getCreateFieldValue(99) = %q, want empty", got)
+	}
+}
+
+func TestSetCreateFieldValue_SetsCorrectFields(t *testing.T) {
+	m := newTestModel()
+
+	m.setCreateFieldValue(0, "bucket-a")
+	m.setCreateFieldValue(1, "aws")
+	m.setCreateFieldValue(2, "eu-west-1")
+	m.setCreateFieldValue(3, "NEARLINE")
+	m.setCreateFieldValue(4, "team=data")
+	m.setCreateFieldValue(5, "no")
+	m.setCreateFieldValue(6, "yes")
+	m.setCreateFieldValue(7, "inherited")
+
+	if m.storage.createName != "bucket-a" {
+		t.Errorf("createName = %q, want bucket-a", m.storage.createName)
+	}
+	if m.storage.createProvider != "aws" {
+		t.Errorf("createProvider = %q, want aws", m.storage.createProvider)
+	}
+	if m.storage.createLocation != "eu-west-1" {
+		t.Errorf("createLocation = %q, want eu-west-1", m.storage.createLocation)
+	}
+	if m.storage.createStorageClass != "NEARLINE" {
+		t.Errorf("createStorageClass = %q, want NEARLINE", m.storage.createStorageClass)
+	}
+	if m.storage.createLabels != "team=data" {
+		t.Errorf("createLabels = %q, want team=data", m.storage.createLabels)
+	}
+	if m.storage.createVersioning != "no" {
+		t.Errorf("createVersioning = %q, want no", m.storage.createVersioning)
+	}
+	if m.storage.createUniformAccess != "yes" {
+		t.Errorf("createUniformAccess = %q, want yes", m.storage.createUniformAccess)
+	}
+	if m.storage.createPublicAccessPrevention != "inherited" {
+		t.Errorf("createPublicAccessPrevention = %q, want inherited", m.storage.createPublicAccessPrevention)
+	}
+}
+
+func TestSyncTextInputToField_SkipsSelectorFields(t *testing.T) {
+	m := newTestModel()
+	m.overlay = OverlayCreateBucket
+	m.storage.availableProviders = []string{"gcp", "aws"}
+	m.storage.createProvider = "gcp"
+	m.storage.createStorageClass = "STANDARD"
+
+	// Selector field (1 = Provider): textinput value should NOT overwrite state.
+	m.storage.createField = 1
+	m.textInput.SetValue("something-typed")
+	m.syncTextInputToField()
+	if m.storage.createProvider != "gcp" {
+		t.Errorf("selector field was overwritten: createProvider = %q, want gcp", m.storage.createProvider)
+	}
+
+	// Selector field (3 = StorageClass): same behavior.
+	m.storage.createField = 3
+	m.textInput.SetValue("INVALID")
+	m.syncTextInputToField()
+	if m.storage.createStorageClass != "STANDARD" {
+		t.Errorf("selector field was overwritten: createStorageClass = %q, want STANDARD", m.storage.createStorageClass)
+	}
+}
+
+func TestSyncTextInputToField_SyncsFreeTextFields(t *testing.T) {
+	m := newTestModel()
+	m.overlay = OverlayCreateBucket
+
+	// Free-text field (0 = Name): textinput value should sync to state.
+	m.storage.createField = 0
+	m.textInput.SetValue("new-bucket")
+	m.syncTextInputToField()
+	if m.storage.createName != "new-bucket" {
+		t.Errorf("free-text field not synced: createName = %q, want new-bucket", m.storage.createName)
+	}
+
+	// Free-text field (4 = Labels): same behavior.
+	m.storage.createField = 4
+	m.textInput.SetValue("env=staging")
+	m.syncTextInputToField()
+	if m.storage.createLabels != "env=staging" {
+		t.Errorf("free-text field not synced: createLabels = %q, want env=staging", m.storage.createLabels)
+	}
+}
+
+func TestHandleOverlayKeys_SelectorFieldBlocksFreeText(t *testing.T) {
+	m := newTestModel()
+	m.overlay = OverlayCreateBucket
+	m.storage.availableProviders = []string{"gcp", "aws"}
+	m.storage.createProvider = "gcp"
+	m.storage.createField = 1 // Provider — selector field
+
+	// Typing a character should not change the provider value.
+	_, _ = m.handleOverlayKeys(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'x'}})
+	if m.storage.createProvider != "gcp" {
+		t.Errorf("typing on selector changed value: createProvider = %q, want gcp", m.storage.createProvider)
+	}
+}
+
+func TestHandleOverlayKeys_SelectorFieldCyclesOnArrows(t *testing.T) {
+	m := newTestModel()
+	m.overlay = OverlayCreateBucket
+	m.storage.createField = 3 // StorageClass — selector field
+	m.storage.createStorageClass = ""
+
+	// Right arrow: "" -> STANDARD
+	_, _ = m.handleOverlayKeys(tea.KeyMsg{Type: tea.KeyRight})
+	if m.storage.createStorageClass != "STANDARD" {
+		t.Errorf("right on storage class = %q, want STANDARD", m.storage.createStorageClass)
+	}
+
+	// Right again: STANDARD -> NEARLINE
+	_, _ = m.handleOverlayKeys(tea.KeyMsg{Type: tea.KeyRight})
+	if m.storage.createStorageClass != "NEARLINE" {
+		t.Errorf("right on storage class = %q, want NEARLINE", m.storage.createStorageClass)
+	}
+
+	// Left: NEARLINE -> STANDARD
+	_, _ = m.handleOverlayKeys(tea.KeyMsg{Type: tea.KeyLeft})
+	if m.storage.createStorageClass != "STANDARD" {
+		t.Errorf("left on storage class = %q, want STANDARD", m.storage.createStorageClass)
 	}
 }
 
@@ -358,6 +578,64 @@ func TestHandleOverlaySubmit_ConfigAdd_EmptyFields(t *testing.T) {
 				t.Error("expected nil cmd when config add fields are empty")
 			}
 		})
+	}
+}
+
+func TestParseLabels(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  map[string]string
+	}{
+		{"empty", "", nil},
+		{"single", "env=prod", map[string]string{"env": "prod"}},
+		{"multiple", "env=prod,team=data", map[string]string{"env": "prod", "team": "data"}},
+		{"spaces", " env = prod , team = data ", map[string]string{"env": "prod", "team": "data"}},
+		{"no_equals", "invalid", nil},
+		{"trailing_comma", "env=prod,", map[string]string{"env": "prod"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := parseLabels(tt.input)
+			if tt.want == nil {
+				if got != nil {
+					t.Errorf("parseLabels(%q) = %v, want nil", tt.input, got)
+				}
+				return
+			}
+			if len(got) != len(tt.want) {
+				t.Errorf("parseLabels(%q) has %d entries, want %d", tt.input, len(got), len(tt.want))
+				return
+			}
+			for k, v := range tt.want {
+				if got[k] != v {
+					t.Errorf("parseLabels(%q)[%q] = %q, want %q", tt.input, k, got[k], v)
+				}
+			}
+		})
+	}
+}
+
+func TestHandleOverlaySubmit_CreateBucket_WithOptionalFields(t *testing.T) {
+	m := newTestModel()
+	m.overlay = OverlayCreateBucket
+	m.storage.createName = "new-bucket"
+	m.storage.createProvider = "gcp"
+	m.storage.createLocation = "us-central1"
+	m.storage.createStorageClass = "nearline"
+	m.storage.createLabels = "env=prod,team=data"
+	m.storage.createVersioning = "yes"
+	m.storage.createUniformAccess = "yes"
+	m.storage.createPublicAccessPrevention = "enforced"
+	m.storage.createField = 0
+	m.textInput.SetValue("new-bucket")
+
+	_, cmd := m.handleOverlaySubmit()
+	if cmd == nil {
+		t.Error("expected non-nil cmd when all fields are provided")
+	}
+	if m.overlay != OverlayNone {
+		t.Errorf("overlay = %d, want OverlayNone after submit", m.overlay)
 	}
 }
 

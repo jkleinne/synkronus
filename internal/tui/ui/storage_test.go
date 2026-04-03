@@ -149,17 +149,94 @@ func TestRenderObjectDetailNoHTTPHeaders(t *testing.T) {
 }
 
 func TestRenderCreateBucketForm(t *testing.T) {
-	result := RenderCreateBucketForm("my-bucket", "gcp", "us-central1", 0, "[cursor]")
+	fields := CreateBucketFormFields{
+		Name: "my-bucket", Provider: "gcp", Location: "us-central1",
+	}
+	result := RenderCreateBucketForm(fields, 0, "[cursor]")
 	if !strings.Contains(result, "Name") {
 		t.Error("create form should show Name label")
+	}
+	if !strings.Contains(result, "Storage Class") {
+		t.Error("create form should show Storage Class label")
+	}
+	if !strings.Contains(result, "Public Access Prevention") {
+		t.Error("create form should show Public Access Prevention label")
+	}
+}
+
+func TestRenderCreateBucketFormShowsHintsForEmptyOptionalFields(t *testing.T) {
+	fields := CreateBucketFormFields{
+		Name: "my-bucket", Provider: "gcp", Location: "us-central1",
+	}
+	result := RenderCreateBucketForm(fields, 0, "[cursor]")
+	// Selector fields show "◀/▶ to select" hint when empty and not active.
+	if !strings.Contains(result, "◀/▶ to select") {
+		t.Error("empty selector fields should show select hint")
 	}
 }
 
 func TestRenderCreateBucketFormHighlightsActiveField(t *testing.T) {
-	// Field 1 (Provider) is active.
-	result := RenderCreateBucketForm("my-bucket", "gcp", "us-central1", 1, "[cursor]")
+	// Field 2 (Location) is active — should show text input cursor.
+	fields := CreateBucketFormFields{
+		Name:     "my-bucket",
+		Provider: "gcp",
+		Location: "us-central1",
+	}
+	result := RenderCreateBucketForm(fields, 2, "[cursor]")
 	if !strings.Contains(result, "[cursor]") {
 		t.Error("create form should render textInputView next to the active field")
+	}
+}
+
+func TestRenderCreateBucketFormSelectorFields(t *testing.T) {
+	selectors := map[int]bool{1: true, 3: true, 5: true, 6: true, 7: true}
+	fields := CreateBucketFormFields{
+		Name:           "my-bucket",
+		Provider:       "gcp",
+		Location:       "us-central1",
+		StorageClass:   "STANDARD",
+		Versioning:     "yes",
+		SelectorFields: selectors,
+	}
+
+	// Provider field (1) active — selector arrows, no text cursor.
+	result := RenderCreateBucketForm(fields, 1, "[cursor]")
+	if !strings.Contains(result, "◀") || !strings.Contains(result, "▶") {
+		t.Error("active selector field should show arrows")
+	}
+	if strings.Contains(result, "[cursor]") {
+		t.Error("active selector field should not show text cursor")
+	}
+	if !strings.Contains(result, "gcp") {
+		t.Error("provider selector should show selected value")
+	}
+
+	// Storage Class field (3) active — also uses selector.
+	result = RenderCreateBucketForm(fields, 3, "[cursor]")
+	if !strings.Contains(result, "◀") || !strings.Contains(result, "STANDARD") {
+		t.Error("storage class selector should show selected value with arrows")
+	}
+
+	// Free-text field (0, Name) active — should show text cursor.
+	result = RenderCreateBucketForm(fields, 0, "[cursor]")
+	if !strings.Contains(result, "[cursor]") {
+		t.Error("free-text field should show text cursor")
+	}
+}
+
+func TestRenderCreateBucketFormSelectorUnset(t *testing.T) {
+	selectors := map[int]bool{3: true}
+	fields := CreateBucketFormFields{
+		Name:           "my-bucket",
+		Provider:       "gcp",
+		Location:       "us-central1",
+		StorageClass:   "", // unset
+		SelectorFields: selectors,
+	}
+	// Empty selector value should show "(unset)".
+	result := RenderCreateBucketForm(fields, 3, "[cursor]")
+	if !strings.Contains(result, "(unset)") {
+		t.Error("empty selector value should show (unset)")
 	}
 }
 

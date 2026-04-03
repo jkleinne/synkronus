@@ -160,3 +160,21 @@ func FormatBytes(bytes int64) string {
 	}
 	return fmt.Sprintf("%.1f %s", float64(bytes)/float64(div), sizes[exp])
 }
+
+// PublicAccessPrevention values for CreateBucketOptions.
+const (
+	PublicAccessPreventionEnforced  = "enforced"
+	PublicAccessPreventionInherited = "inherited"
+)
+
+// CreateBucketOptions contains the parameters for creating a new storage bucket.
+// Optional fields use pointer types to distinguish "not set" (nil) from explicit values.
+type CreateBucketOptions struct {
+	Name                     string
+	Location                 string
+	StorageClass             string
+	Labels                   map[string]string
+	Versioning               *bool
+	UniformBucketLevelAccess *bool
+	PublicAccessPrevention   *string // "enforced", "inherited", or nil (provider default)
+}

@@ -5,6 +5,8 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
+
+	"synkronus/internal/domain/storage"
 )
 
 // Key constants for tea.KeyMsg.String() comparisons.
@@ -16,10 +18,21 @@ const (
 	keyEnter    = "enter"
 	keyTab      = "tab"
 	keyShiftTab = "shift+tab"
+	keyLeft     = "left"
+	keyRight    = "right"
 )
 
 // createFormFieldCount is the number of fields in the create-bucket overlay.
-const createFormFieldCount = 3
+const createFormFieldCount = 8
+
+// Static options for selector fields in the create-bucket form.
+// Empty string at index 0 represents "unset" (use provider default).
+var (
+	storageClassOptions           = []string{"", "STANDARD", "NEARLINE", "COLDLINE", "ARCHIVE"}
+	versioningOptions             = []string{"", "yes", "no"}
+	uniformAccessOptions          = []string{"", "yes", "no"}
+	publicAccessPreventionOptions = []string{"", "enforced", "inherited"}
+)
 
 // --- Overlay key handling ---
 
@@ -59,6 +72,15 @@ func (m *Model) handleOverlayKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			}
 			return m, nil
 		default:
+			// Selector fields cycle with left/right instead of free text.
+			if m.overlay == OverlayCreateBucket {
+				if options := m.getCreateFieldOptions(m.storage.createField); len(options) > 0 {
+					value := cycleOption(options, m.getCreateFieldValue(m.storage.createField), key)
+					m.setCreateFieldValue(m.storage.createField, value)
+					m.textInput.SetValue(value)
+					return m, nil
+				}
+			}
 			// Forward all other keys to the textinput bubble.
 			var cmd tea.Cmd
 			m.textInput, cmd = m.textInput.Update(msg)
@@ -95,10 +117,37 @@ func (m *Model) handleOverlaySubmit() (tea.Model, tea.Cmd) {
 		if name == "" || provider == "" || location == "" {
 			return m, nil
 		}
+		opts := storage.CreateBucketOptions{
+			Name:     name,
+			Location: location,
+		}
+		if sc := strings.TrimSpace(m.storage.createStorageClass); sc != "" {
+			opts.StorageClass = strings.ToUpper(sc)
+		}
+		if labelsStr := strings.TrimSpace(m.storage.createLabels); labelsStr != "" {
+			opts.Labels = parseLabels(labelsStr)
+		}
+		if v := strings.TrimSpace(strings.ToLower(m.storage.createVersioning)); v == "yes" {
+			t := true
+			opts.Versioning = &t
+		} else if v == "no" {
+			f := false
+			opts.Versioning = &f
+		}
+		if v := strings.TrimSpace(strings.ToLower(m.storage.createUniformAccess)); v == "yes" {
+			t := true
+			opts.UniformBucketLevelAccess = &t
+		} else if v == "no" {
+			f := false
+			opts.UniformBucketLevelAccess = &f
+		}
+		if v := strings.TrimSpace(strings.ToLower(m.storage.createPublicAccessPrevention)); v == storage.PublicAccessPreventionEnforced || v == storage.PublicAccessPreventionInherited {
+			opts.PublicAccessPrevention = &v
+		}
 		m.overlay = OverlayNone
 		m.storage.loading = true
 		m.textInput.Reset()
-		return m, createBucketCmd(m.storageService, name, provider, location)
+		return m, createBucketCmd(m.storageService, opts, provider)
 
 	case OverlayDeleteConfirm:
 		if m.textInput.Value() != m.storage.selectedBucket.Name {
@@ -132,13 +181,9 @@ func (m *Model) handleOverlaySubmit() (tea.Model, tea.Cmd) {
 func (m *Model) syncTextInputToField() {
 	switch m.overlay {
 	case OverlayCreateBucket:
-		switch m.storage.createField {
-		case 0:
-			m.storage.createName = m.textInput.Value()
-		case 1:
-			m.storage.createProvider = m.textInput.Value()
-		case 2:
-			m.storage.createLocation = m.textInput.Value()
+		// Selector fields manage their own state — only sync free-text fields from textinput.
+		if m.getCreateFieldOptions(m.storage.createField) == nil {
+			m.setCreateFieldValue(m.storage.createField, m.textInput.Value())
 		}
 	case OverlayDeleteConfirm:
 		m.storage.deleteInput = m.textInput.Value()
@@ -153,15 +198,111 @@ func (m *Model) syncTextInputToField() {
 
 // loadFieldIntoTextInput sets the textinput value to the current create-bucket field.
 func (m *Model) loadFieldIntoTextInput() {
-	switch m.storage.createField {
-	case 0:
-		m.textInput.SetValue(m.storage.createName)
-	case 1:
-		m.textInput.SetValue(m.storage.createProvider)
-	case 2:
-		m.textInput.SetValue(m.storage.createLocation)
-	}
+	m.textInput.SetValue(m.getCreateFieldValue(m.storage.createField))
 	m.textInput.Focus()
+}
+
+// getCreateFieldOptions returns the valid options for a selector field, or nil for free-text fields.
+func (m *Model) getCreateFieldOptions(field int) []string {
+	switch field {
+	case 1:
+		return m.storage.availableProviders
+	case 3:
+		return storageClassOptions
+	case 5:
+		return versioningOptions
+	case 6:
+		return uniformAccessOptions
+	case 7:
+		return publicAccessPreventionOptions
+	default:
+		return nil
+	}
+}
+
+// getCreateFieldValue returns the current value of a create-bucket form field.
+func (m *Model) getCreateFieldValue(field int) string {
+	switch field {
+	case 0:
+		return m.storage.createName
+	case 1:
+		return m.storage.createProvider
+	case 2:
+		return m.storage.createLocation
+	case 3:
+		return m.storage.createStorageClass
+	case 4:
+		return m.storage.createLabels
+	case 5:
+		return m.storage.createVersioning
+	case 6:
+		return m.storage.createUniformAccess
+	case 7:
+		return m.storage.createPublicAccessPrevention
+	default:
+		return ""
+	}
+}
+
+// setCreateFieldValue sets the value of a create-bucket form field.
+func (m *Model) setCreateFieldValue(field int, value string) {
+	switch field {
+	case 0:
+		m.storage.createName = value
+	case 1:
+		m.storage.createProvider = value
+	case 2:
+		m.storage.createLocation = value
+	case 3:
+		m.storage.createStorageClass = value
+	case 4:
+		m.storage.createLabels = value
+	case 5:
+		m.storage.createVersioning = value
+	case 6:
+		m.storage.createUniformAccess = value
+	case 7:
+		m.storage.createPublicAccessPrevention = value
+	}
+}
+
+// cycleOption advances or retreats through a list of options based on key direction.
+// Left/right cycle; other keys are ignored and the current value is returned.
+func cycleOption(options []string, current, key string) string {
+	idx := 0
+	for i, o := range options {
+		if o == current {
+			idx = i
+			break
+		}
+	}
+	switch key {
+	case keyLeft:
+		idx = (idx - 1 + len(options)) % len(options)
+	case keyRight:
+		idx = (idx + 1) % len(options)
+	}
+	return options[idx]
+}
+
+// parseLabels parses a "key=value,key=value" string into a map.
+// Pairs without an "=" separator are silently skipped. Returns nil for empty input.
+func parseLabels(s string) map[string]string {
+	labels := make(map[string]string)
+	for _, pair := range strings.Split(s, ",") {
+		pair = strings.TrimSpace(pair)
+		if pair == "" {
+			continue
+		}
+		k, v, ok := strings.Cut(pair, "=")
+		if ok {
+			labels[strings.TrimSpace(k)] = strings.TrimSpace(v)
+		}
+	}
+	if len(labels) == 0 {
+		return nil
+	}
+	return labels
 }
 
 // --- View-level key dispatch ---
@@ -245,8 +386,18 @@ func (m *Model) handleStorageListKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 	case "c":
 		m.storage.createName = ""
-		m.storage.createProvider = ""
 		m.storage.createLocation = ""
+		m.storage.createStorageClass = ""
+		m.storage.createLabels = ""
+		m.storage.createVersioning = ""
+		m.storage.createUniformAccess = ""
+		m.storage.createPublicAccessPrevention = ""
+		m.storage.availableProviders = m.factory.GetConfiguredProviders()
+		if len(m.storage.availableProviders) > 0 {
+			m.storage.createProvider = m.storage.availableProviders[0]
+		} else {
+			m.storage.createProvider = ""
+		}
 		m.storage.createField = 0
 		m.textInput.SetValue("")
 		m.textInput.Focus()

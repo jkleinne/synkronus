@@ -73,11 +73,17 @@ type storageState struct {
 	scrollOffset   int
 	loading        bool
 	loaded         bool
-	createName     string
-	createProvider string
-	createLocation string
-	createField    int
-	deleteInput    string
+	createName                   string
+	createProvider               string
+	createLocation               string
+	availableProviders           []string
+	createStorageClass           string
+	createLabels                 string
+	createVersioning             string // "yes"/"no"/""
+	createUniformAccess          string // "yes"/"no"/""
+	createPublicAccessPrevention string // "enforced"/"inherited"/""
+	createField                  int
+	deleteInput                  string
 }
 
 // sqlState holds the mutable state for the SQL tab.
@@ -357,10 +363,24 @@ func (m *Model) renderOverlay() string {
 		return ui.RenderModal("Help", content, m.width, m.height)
 
 	case OverlayCreateBucket:
+		selectorFields := make(map[int]bool)
+		for i := 0; i < createFormFieldCount; i++ {
+			if m.getCreateFieldOptions(i) != nil {
+				selectorFields[i] = true
+			}
+		}
 		content := ui.RenderCreateBucketForm(
-			m.storage.createName,
-			m.storage.createProvider,
-			m.storage.createLocation,
+			ui.CreateBucketFormFields{
+				Name:                   m.storage.createName,
+				Provider:               m.storage.createProvider,
+				Location:               m.storage.createLocation,
+				StorageClass:           m.storage.createStorageClass,
+				Labels:                 m.storage.createLabels,
+				Versioning:             m.storage.createVersioning,
+				UniformAccess:          m.storage.createUniformAccess,
+				PublicAccessPrevention: m.storage.createPublicAccessPrevention,
+				SelectorFields:         selectorFields,
+			},
 			m.storage.createField,
 			m.textInput.View(),
 		)

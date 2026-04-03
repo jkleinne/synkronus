@@ -21,7 +21,9 @@ func (f *fakeStorage) ListBuckets(ctx context.Context) ([]storage.Bucket, error)
 func (f *fakeStorage) DescribeBucket(ctx context.Context, n string) (storage.Bucket, error) {
 	return storage.Bucket{}, nil
 }
-func (f *fakeStorage) CreateBucket(ctx context.Context, n, l string) error              { return nil }
+func (f *fakeStorage) CreateBucket(ctx context.Context, opts storage.CreateBucketOptions) error {
+	return nil
+}
 func (f *fakeStorage) DeleteBucket(ctx context.Context, n string) error                 { return nil }
 func (f *fakeStorage) ListObjects(ctx context.Context, b, p string) (storage.ObjectList, error) {
 	return storage.ObjectList{}, nil
