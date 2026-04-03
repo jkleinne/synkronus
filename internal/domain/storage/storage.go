@@ -2,6 +2,7 @@ package storage
 
 import (
 	"context"
+	"io"
 	"synkronus/internal/domain"
 )
 
@@ -22,6 +23,8 @@ type Storage interface {
 	ListObjects(ctx context.Context, bucketName string, prefix string) (ObjectList, error)
 
 	DescribeObject(ctx context.Context, bucketName string, objectKey string) (Object, error)
+
+	DownloadObject(ctx context.Context, bucketName string, objectKey string) (io.ReadCloser, error)
 
 	ProviderName() domain.Provider
 

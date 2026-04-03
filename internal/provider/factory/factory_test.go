@@ -3,6 +3,7 @@ package factory
 import (
 	"context"
 	"fmt"
+	"io"
 	"log/slog"
 	"strings"
 	"synkronus/internal/config"
@@ -30,6 +31,9 @@ func (f *fakeStorage) ListObjects(ctx context.Context, b, p string) (storage.Obj
 }
 func (f *fakeStorage) DescribeObject(ctx context.Context, b, k string) (storage.Object, error) {
 	return storage.Object{}, nil
+}
+func (f *fakeStorage) DownloadObject(ctx context.Context, b, k string) (io.ReadCloser, error) {
+	return nil, nil
 }
 func (f *fakeStorage) ProviderName() domain.Provider { return domain.Provider(f.name) }
 func (f *fakeStorage) Close() error                  { return nil }
