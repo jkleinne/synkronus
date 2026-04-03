@@ -12,6 +12,7 @@ import (
 	"synkronus/internal/domain/storage"
 
 	gcpstorage "cloud.google.com/go/storage"
+	"golang.org/x/sync/errgroup"
 	"google.golang.org/api/googleapi"
 	"google.golang.org/api/iterator"
 )
@@ -68,32 +69,54 @@ func (g *GCPStorage) DescribeBucket(ctx context.Context, bucketName string) (sto
 		return storage.Bucket{}, fmt.Errorf("error getting bucket attributes: %w", err)
 	}
 
-	usage, err := g.getSingleBucketUsage(ctx, bucketName)
-	if err != nil {
-		logLevel := slog.LevelWarn
-		logMsg := "Failed to retrieve usage metrics due to API error, usage will be reported as N/A"
+	// Fetch supplementary data concurrently — each is best-effort.
+	var (
+		usage     int64 = -1
+		aclRules  []storage.ACLRule
+		iamPolicy *storage.IAMPolicy
+	)
 
-		if errors.Is(err, ErrMetricsNotFound) {
-			logLevel = slog.LevelInfo
-			logMsg = "Usage metrics not yet available (bucket may be new), usage will be reported as N/A"
+	eg, egCtx := errgroup.WithContext(ctx)
+
+	eg.Go(func() error {
+		u, err := g.getSingleBucketUsage(egCtx, bucketName)
+		if err != nil {
+			logLevel := slog.LevelWarn
+			logMsg := "Failed to retrieve usage metrics due to API error, usage will be reported as N/A"
+
+			if errors.Is(err, ErrMetricsNotFound) {
+				logLevel = slog.LevelInfo
+				logMsg = "Usage metrics not yet available (bucket may be new), usage will be reported as N/A"
+			}
+
+			g.logger.Log(egCtx, logLevel, logMsg, "bucket", bucketName, "error", err)
+			return nil
 		}
+		usage = u
+		return nil
+	})
 
-		g.logger.Log(ctx, logLevel, logMsg, "bucket", bucketName, "error", err)
-		usage = -1 // Set usage to unknown on failure
-	}
+	eg.Go(func() error {
+		acls, err := g.getACLs(egCtx, bucketHandle)
+		if err != nil {
+			g.logger.Warn("Could not retrieve ACLs for bucket", "bucket", bucketName, "error", err)
+			return nil
+		}
+		aclRules = acls
+		return nil
+	})
 
-	// Fetch ACLs (separate API call)
-	aclRules, err := g.getACLs(ctx, bucketHandle)
-	if err != nil {
-		// Log a warning but don't fail the entire operation, as ACLs might not be readable
-		g.logger.Warn("Could not retrieve ACLs for bucket", "bucket", bucketName, "error", err)
-	}
+	eg.Go(func() error {
+		iam, err := g.getIAMPolicy(egCtx, bucketHandle)
+		if err != nil {
+			g.logger.Warn("Could not retrieve IAM policy for bucket. Requires 'storage.buckets.getIamPolicy' permission.", "bucket", bucketName, "error", err)
+			return nil
+		}
+		iamPolicy = iam
+		return nil
+	})
 
-	// Fetch IAM Policy (separate API call)
-	iamPolicy, err := g.getIAMPolicy(ctx, bucketHandle)
-	if err != nil {
-		g.logger.Warn("Could not retrieve IAM policy for bucket. Requires 'storage.buckets.getIamPolicy' permission.", "bucket", bucketName, "error", err)
-	}
+	eg.Wait()
 
 	details := storage.Bucket{
 		Name:                     attrs.Name,
