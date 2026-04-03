@@ -929,3 +929,110 @@ func TestHandleConfigLoaded_Error(t *testing.T) {
 		t.Errorf("err = %v, want 'read error'", m.err)
 	}
 }
+
+// --- handleObjectDownloaded ---
+
+func TestHandleObjectDownloaded_Success(t *testing.T) {
+	m := newTestModel()
+	m.storage.loading = true
+	m.storage.downloadingKey = "dir/file.txt"
+
+	_, cmd := m.handleObjectDownloaded(ObjectDownloadedMsg{FilePath: "./file.txt"})
+
+	if m.storage.loading {
+		t.Error("expected loading = false after download complete")
+	}
+	if m.storage.downloadingKey != "" {
+		t.Errorf("downloadingKey = %q, want empty", m.storage.downloadingKey)
+	}
+	if m.statusMessage != "Downloaded to ./file.txt" {
+		t.Errorf("statusMessage = %q, want %q", m.statusMessage, "Downloaded to ./file.txt")
+	}
+	if cmd == nil {
+		t.Error("expected non-nil cmd (clearStatusCmd)")
+	}
+}
+
+func TestHandleObjectDownloaded_Error(t *testing.T) {
+	m := newTestModel()
+	m.storage.loading = true
+	m.storage.downloadingKey = "dir/file.txt"
+
+	_, cmd := m.handleObjectDownloaded(ObjectDownloadedMsg{Err: errors.New("download failed")})
+
+	if m.storage.loading {
+		t.Error("expected loading = false after download error")
+	}
+	if m.storage.downloadingKey != "" {
+		t.Errorf("downloadingKey = %q, want empty", m.storage.downloadingKey)
+	}
+	if m.err == nil || m.err.Error() != "download failed" {
+		t.Errorf("err = %v, want 'download failed'", m.err)
+	}
+	if cmd != nil {
+		t.Error("expected nil cmd on error")
+	}
+}
+
+// --- handleObjectListKeys "w" ---
+
+func TestHandleObjectListKeys_DownloadOnObject(t *testing.T) {
+	m := newTestModel()
+	m.viewState = ViewStorageObjectList
+	m.storage.selectedBucket = storage.Bucket{Name: "test-bucket", Provider: domain.GCP}
+	m.storage.objects = storage.ObjectList{
+		CommonPrefixes: []string{"dir/"},
+		Objects:        []storage.Object{{Key: "file.txt"}},
+	}
+	m.storage.cursor = 1 // on the object (index 1 = past 1 prefix)
+
+	_, cmd := m.handleObjectListKeys(runeKey('w'))
+
+	if !m.storage.loading {
+		t.Error("expected loading = true")
+	}
+	if m.storage.downloadingKey != "file.txt" {
+		t.Errorf("downloadingKey = %q, want %q", m.storage.downloadingKey, "file.txt")
+	}
+	if cmd == nil {
+		t.Error("expected non-nil cmd for download")
+	}
+}
+
+func TestHandleObjectListKeys_DownloadIgnoredOnPrefix(t *testing.T) {
+	m := newTestModel()
+	m.viewState = ViewStorageObjectList
+	m.storage.objects = storage.ObjectList{
+		CommonPrefixes: []string{"dir/"},
+		Objects:        []storage.Object{{Key: "file.txt"}},
+	}
+	m.storage.cursor = 0 // on the prefix
+
+	_, cmd := m.handleObjectListKeys(runeKey('w'))
+
+	if m.storage.loading {
+		t.Error("expected loading = false (download should not trigger on prefix)")
+	}
+	if cmd != nil {
+		t.Error("expected nil cmd when pressing w on a prefix")
+	}
+}
+
+func TestHandleObjectDetailKeys_Download(t *testing.T) {
+	m := newTestModel()
+	m.viewState = ViewStorageObjectDetail
+	m.storage.selectedBucket = storage.Bucket{Name: "test-bucket", Provider: domain.GCP}
+	m.storage.selectedObject = storage.Object{Key: "path/to/data.csv"}
+
+	_, cmd := m.handleObjectDetailKeys(runeKey('w'))
+
+	if !m.storage.loading {
+		t.Error("expected loading = true")
+	}
+	if m.storage.downloadingKey != "path/to/data.csv" {
+		t.Errorf("downloadingKey = %q, want %q", m.storage.downloadingKey, "path/to/data.csv")
+	}
+	if cmd == nil {
+		t.Error("expected non-nil cmd for download")
+	}
+}
