@@ -223,8 +223,8 @@ func TestHandleOverlayKeys_TabCyclesCreateFields(t *testing.T) {
 	m.overlay = OverlayCreateBucket
 	m.storage.createField = 0
 
-	// Cycle through 0 -> 1 -> 2 -> 0
-	expected := []int{1, 2, 0}
+	// Cycle through all 8 fields (0 -> 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 0)
+	expected := []int{1, 2, 3, 4, 5, 6, 7, 0}
 	for i, want := range expected {
 		_, _ = m.handleOverlayKeys(tea.KeyMsg{Type: tea.KeyTab})
 		if m.storage.createField != want {

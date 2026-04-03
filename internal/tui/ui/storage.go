@@ -233,20 +233,49 @@ func buildObjectMetadataSection(obj storage.Object) (KeyValueSection, bool) {
 	return KeyValueSection{Title: "Metadata", Entries: entries}, true
 }
 
+// CreateBucketFormFields holds the current values for the create bucket form.
+type CreateBucketFormFields struct {
+	Name                   string
+	Provider               string
+	Location               string
+	StorageClass           string
+	Labels                 string
+	Versioning             string
+	UniformAccess          string
+	PublicAccessPrevention string
+}
+
 // RenderCreateBucketForm renders the create bucket form fields.
 // The active field is highlighted with SectionHeaderStyle; textInputView is shown beside it.
-func RenderCreateBucketForm(name, provider, location string, activeField int, textInputView string) string {
-	fieldLabels := []string{"Name", "Provider", "Location"}
-	fieldValues := []string{name, provider, location}
+func RenderCreateBucketForm(fields CreateBucketFormFields, activeField int, textInputView string) string {
+	type entry struct {
+		label string
+		value string
+		hint  string
+	}
+	entries := []entry{
+		{"Name", fields.Name, ""},
+		{"Provider", fields.Provider, ""},
+		{"Location", fields.Location, ""},
+		{"Storage Class", fields.StorageClass, "(STANDARD, NEARLINE, COLDLINE, ARCHIVE)"},
+		{"Labels", fields.Labels, "(key=value,key=value)"},
+		{"Versioning", fields.Versioning, "(yes/no)"},
+		{"Uniform Access", fields.UniformAccess, "(yes/no)"},
+		{"Public Access Prevention", fields.PublicAccessPrevention, "(enforced/inherited)"},
+	}
 
 	var lines []string
-	for i, label := range fieldLabels {
+	for i, e := range entries {
 		if i == activeField {
-			labelStr := SectionHeaderStyle.Render(label+":")
+			labelStr := SectionHeaderStyle.Render(e.label + ":")
 			lines = append(lines, labelStr+" "+textInputView)
 		} else {
-			labelStr := TextDimStyle.Render(label+":")
-			valueStr := TextSecondaryStyle.Render(fieldValues[i])
+			labelStr := TextDimStyle.Render(e.label + ":")
+			val := e.value
+			if val == "" && e.hint != "" {
+				val = e.hint
+			}
+			valueStr := TextSecondaryStyle.Render(val)
 			lines = append(lines, labelStr+" "+valueStr)
 		}
 	}

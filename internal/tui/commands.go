@@ -149,12 +149,12 @@ func fetchConfigCmd(cm *config.ConfigManager) tea.Cmd {
 	}
 }
 
-// createBucketCmd creates a new bucket in the specified provider and location.
-func createBucketCmd(svc *service.StorageService, name, provider, location string) tea.Cmd {
+// createBucketCmd submits a create-bucket request with the given options to the specified provider.
+func createBucketCmd(svc *service.StorageService, opts storage.CreateBucketOptions, provider string) tea.Cmd {
 	return func() tea.Msg {
 		ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 		defer cancel()
-		err := svc.CreateBucket(ctx, name, provider, location)
+		err := svc.CreateBucket(ctx, opts, provider)
 		return BucketCreatedMsg{Err: err}
 	}
 }

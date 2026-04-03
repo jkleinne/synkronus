@@ -149,7 +149,12 @@ func TestRenderObjectDetailNoHTTPHeaders(t *testing.T) {
 }
 
 func TestRenderCreateBucketForm(t *testing.T) {
-	result := RenderCreateBucketForm("my-bucket", "gcp", "us-central1", 0, "[cursor]")
+	fields := CreateBucketFormFields{
+		Name:     "my-bucket",
+		Provider: "gcp",
+		Location: "us-central1",
+	}
+	result := RenderCreateBucketForm(fields, 0, "[cursor]")
 	if !strings.Contains(result, "Name") {
 		t.Error("create form should show Name label")
 	}
@@ -157,7 +162,12 @@ func TestRenderCreateBucketForm(t *testing.T) {
 
 func TestRenderCreateBucketFormHighlightsActiveField(t *testing.T) {
 	// Field 1 (Provider) is active.
-	result := RenderCreateBucketForm("my-bucket", "gcp", "us-central1", 1, "[cursor]")
+	fields := CreateBucketFormFields{
+		Name:     "my-bucket",
+		Provider: "gcp",
+		Location: "us-central1",
+	}
+	result := RenderCreateBucketForm(fields, 1, "[cursor]")
 	if !strings.Contains(result, "[cursor]") {
 		t.Error("create form should render textInputView next to the active field")
 	}

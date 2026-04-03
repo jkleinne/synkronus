@@ -5,6 +5,8 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
+
+	"synkronus/internal/domain/storage"
 )
 
 // Key constants for tea.KeyMsg.String() comparisons.
@@ -19,7 +21,7 @@ const (
 )
 
 // createFormFieldCount is the number of fields in the create-bucket overlay.
-const createFormFieldCount = 3
+const createFormFieldCount = 8
 
 // --- Overlay key handling ---
 
@@ -95,10 +97,37 @@ func (m *Model) handleOverlaySubmit() (tea.Model, tea.Cmd) {
 		if name == "" || provider == "" || location == "" {
 			return m, nil
 		}
+		opts := storage.CreateBucketOptions{
+			Name:     name,
+			Location: location,
+		}
+		if sc := strings.TrimSpace(m.storage.createStorageClass); sc != "" {
+			opts.StorageClass = strings.ToUpper(sc)
+		}
+		if labelsStr := strings.TrimSpace(m.storage.createLabels); labelsStr != "" {
+			opts.Labels = parseLabels(labelsStr)
+		}
+		if v := strings.TrimSpace(strings.ToLower(m.storage.createVersioning)); v == "yes" {
+			t := true
+			opts.Versioning = &t
+		} else if v == "no" {
+			f := false
+			opts.Versioning = &f
+		}
+		if v := strings.TrimSpace(strings.ToLower(m.storage.createUniformAccess)); v == "yes" {
+			t := true
+			opts.UniformBucketLevelAccess = &t
+		} else if v == "no" {
+			f := false
+			opts.UniformBucketLevelAccess = &f
+		}
+		if v := strings.TrimSpace(strings.ToLower(m.storage.createPublicAccessPrevention)); v == "enforced" || v == "inherited" {
+			opts.PublicAccessPrevention = &v
+		}
 		m.overlay = OverlayNone
 		m.storage.loading = true
 		m.textInput.Reset()
-		return m, createBucketCmd(m.storageService, name, provider, location)
+		return m, createBucketCmd(m.storageService, opts, provider)
 
 	case OverlayDeleteConfirm:
 		if m.textInput.Value() != m.storage.selectedBucket.Name {
@@ -139,6 +168,16 @@ func (m *Model) syncTextInputToField() {
 			m.storage.createProvider = m.textInput.Value()
 		case 2:
 			m.storage.createLocation = m.textInput.Value()
+		case 3:
+			m.storage.createStorageClass = m.textInput.Value()
+		case 4:
+			m.storage.createLabels = m.textInput.Value()
+		case 5:
+			m.storage.createVersioning = m.textInput.Value()
+		case 6:
+			m.storage.createUniformAccess = m.textInput.Value()
+		case 7:
+			m.storage.createPublicAccessPrevention = m.textInput.Value()
 		}
 	case OverlayDeleteConfirm:
 		m.storage.deleteInput = m.textInput.Value()
@@ -160,8 +199,38 @@ func (m *Model) loadFieldIntoTextInput() {
 		m.textInput.SetValue(m.storage.createProvider)
 	case 2:
 		m.textInput.SetValue(m.storage.createLocation)
+	case 3:
+		m.textInput.SetValue(m.storage.createStorageClass)
+	case 4:
+		m.textInput.SetValue(m.storage.createLabels)
+	case 5:
+		m.textInput.SetValue(m.storage.createVersioning)
+	case 6:
+		m.textInput.SetValue(m.storage.createUniformAccess)
+	case 7:
+		m.textInput.SetValue(m.storage.createPublicAccessPrevention)
 	}
 	m.textInput.Focus()
+}
+
+// parseLabels parses a "key=value,key=value" string into a map.
+// Pairs without an "=" separator are silently skipped. Returns nil for empty input.
+func parseLabels(s string) map[string]string {
+	labels := make(map[string]string)
+	for _, pair := range strings.Split(s, ",") {
+		pair = strings.TrimSpace(pair)
+		if pair == "" {
+			continue
+		}
+		k, v, ok := strings.Cut(pair, "=")
+		if ok {
+			labels[strings.TrimSpace(k)] = strings.TrimSpace(v)
+		}
+	}
+	if len(labels) == 0 {
+		return nil
+	}
+	return labels
 }
 
 // --- View-level key dispatch ---
@@ -247,6 +316,11 @@ func (m *Model) handleStorageListKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.storage.createName = ""
 		m.storage.createProvider = ""
 		m.storage.createLocation = ""
+		m.storage.createStorageClass = ""
+		m.storage.createLabels = ""
+		m.storage.createVersioning = ""
+		m.storage.createUniformAccess = ""
+		m.storage.createPublicAccessPrevention = ""
 		m.storage.createField = 0
 		m.textInput.SetValue("")
 		m.textInput.Focus()
