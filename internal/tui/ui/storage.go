@@ -244,6 +244,7 @@ type CreateBucketFormFields struct {
 	UniformAccess          string
 	PublicAccessPrevention string
 	SelectorFields         map[int]bool // field indices that use left/right cycling instead of free text
+	HiddenFields           map[int]bool // field indices to hide (e.g., UBLA for non-GCP providers)
 }
 
 // RenderCreateBucketForm renders the create bucket form fields.
@@ -267,6 +268,9 @@ func RenderCreateBucketForm(fields CreateBucketFormFields, activeField int, text
 
 	var lines []string
 	for i, e := range entries {
+		if fields.HiddenFields[i] {
+			continue
+		}
 		if i == activeField {
 			labelStr := SectionHeaderStyle.Render(e.label + ":")
 			if fields.SelectorFields[i] {

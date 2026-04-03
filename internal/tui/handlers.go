@@ -56,7 +56,7 @@ func (m *Model) handleOverlayKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.syncTextInputToField()
 			switch m.overlay {
 			case OverlayCreateBucket:
-				m.storage.createField = (m.storage.createField + 1) % createFormFieldCount
+				m.storage.createField = m.nextVisibleCreateField(m.storage.createField)
 				m.loadFieldIntoTextInput()
 			case OverlayConfigAdd:
 				// Toggle between key (field 0) and value (field 1).
@@ -79,6 +79,10 @@ func (m *Model) handleOverlayKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 					value := cycleOption(options, m.getCreateFieldValue(m.storage.createField), key)
 					m.setCreateFieldValue(m.storage.createField, value)
 					m.textInput.SetValue(value)
+					// Update hidden fields when provider changes
+					if m.storage.createField == 1 {
+						m.updateCreateHiddenFields()
+					}
 					return m, nil
 				}
 			}
@@ -286,6 +290,29 @@ func (m *Model) setCreateFieldValue(field int, value string) {
 	}
 }
 
+// uniformAccessFieldIndex is the index of the Uniform Access field in the create-bucket form.
+const uniformAccessFieldIndex = 6
+
+// nextVisibleCreateField returns the next visible field index, skipping hidden fields.
+func (m *Model) nextVisibleCreateField(current int) int {
+	for i := 1; i <= createFormFieldCount; i++ {
+		next := (current + i) % createFormFieldCount
+		if !m.storage.createHiddenFields[next] {
+			return next
+		}
+	}
+	return current
+}
+
+// updateCreateHiddenFields shows/hides provider-specific fields based on the selected provider.
+func (m *Model) updateCreateHiddenFields() {
+	if m.storage.createHiddenFields == nil {
+		m.storage.createHiddenFields = make(map[int]bool)
+	}
+	// Uniform Access is GCP-only
+	m.storage.createHiddenFields[uniformAccessFieldIndex] = strings.ToLower(m.storage.createProvider) != "gcp"
+}
+
 // cycleOption advances or retreats through a list of options based on key direction.
 // Left/right cycle; other keys are ignored and the current value is returned.
 func cycleOption(options []string, current, key string) string {
@@ -419,6 +446,7 @@ func (m *Model) handleStorageListKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.storage.createProvider = ""
 		}
 		m.storage.createField = 0
+		m.updateCreateHiddenFields()
 		m.textInput.SetValue("")
 		m.textInput.Focus()
 		m.overlay = OverlayCreateBucket
