@@ -59,8 +59,8 @@ func (s *StorageService) DescribeBucket(ctx context.Context, bucketName, provide
 	return bucket, nil
 }
 
-func (s *StorageService) CreateBucket(ctx context.Context, bucketName, providerName, location string) error {
-	s.logger.Debug("Starting CreateBucket operation", "bucket", bucketName, "provider", providerName, "location", location)
+func (s *StorageService) CreateBucket(ctx context.Context, opts storage.CreateBucketOptions, providerName string) error {
+	s.logger.Debug("Starting CreateBucket operation", "bucket", opts.Name, "provider", providerName, "location", opts.Location)
 
 	client, err := s.getStorageClient(ctx, providerName)
 	if err != nil {
@@ -68,9 +68,9 @@ func (s *StorageService) CreateBucket(ctx context.Context, bucketName, providerN
 	}
 	defer client.Close()
 
-	err = client.CreateBucket(ctx, bucketName, location)
+	err = client.CreateBucket(ctx, opts)
 	if err != nil {
-		s.logger.Error("Failed to create bucket", "bucket", bucketName, "provider", providerName, "error", err)
+		s.logger.Error("Failed to create bucket", "bucket", opts.Name, "provider", providerName, "error", err)
 		return err
 	}
 	return nil

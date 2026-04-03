@@ -28,6 +28,22 @@ const (
 	Force      = "force"
 	ForceShort = "f"
 
+	// StorageClass flags specify the storage class for bucket creation
+	StorageClass      = "storage-class"
+	StorageClassShort = "s"
+
+	// Labels flags specify key-value labels for resource creation
+	Labels = "labels"
+
+	// VersioningFlag flags enable object versioning on bucket creation
+	VersioningFlag = "versioning"
+
+	// UniformAccess flags enable Uniform Bucket-Level Access on bucket creation
+	UniformAccess = "uniform-access"
+
+	// PublicAccessPreventionFlag flags set public access prevention policy on bucket creation
+	PublicAccessPreventionFlag = "public-access-prevention"
+
 	// Debug flags are used to enable verbose logging
 	Debug      = "debug"
 	DebugShort = "d"
