@@ -28,7 +28,8 @@ type GCPConfig struct {
 }
 
 type AWSConfig struct {
-	Region string `json:"region,omitempty" validate:"required"`
+	Region   string `json:"region,omitempty" validate:"required"`
+	Endpoint string `json:"endpoint,omitempty" validate:"omitempty,uri"`
 }
 
 type Config struct {
