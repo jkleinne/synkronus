@@ -3,42 +3,38 @@ package aws
 import (
 	"context"
 	"log/slog"
-	"strings"
-	"synkronus/internal/domain/storage"
+	"synkronus/internal/config"
 	"testing"
 )
 
-func newTestStorage() *AWSStorage {
-	return NewAWSStorage("us-east-1", slog.Default())
+func newTestStorage(t *testing.T) *AWSStorage {
+	t.Helper()
+	s, err := NewAWSStorage(context.Background(), &config.AWSConfig{
+		Region:   "us-east-1",
+		Endpoint: "http://localhost:4566",
+	}, slog.Default())
+	if err != nil {
+		t.Fatalf("failed to create test storage: %v", err)
+	}
+	return s
 }
 
-func TestAllMethodsReturnNotImplemented(t *testing.T) {
-	s := newTestStorage()
-	ctx := context.Background()
-
+func TestIsConfigured(t *testing.T) {
 	tests := []struct {
 		name string
-		fn   func() error
+		cfg  *config.Config
+		want bool
 	}{
-		{"ListBuckets", func() error { _, err := s.ListBuckets(ctx); return err }},
-		{"DescribeBucket", func() error { _, err := s.DescribeBucket(ctx, "b"); return err }},
-		{"CreateBucket", func() error {
-			return s.CreateBucket(ctx, storage.CreateBucketOptions{Name: "b", Location: "us-east-1"})
-		}},
-		{"DeleteBucket", func() error { return s.DeleteBucket(ctx, "b") }},
-		{"ListObjects", func() error { _, err := s.ListObjects(ctx, "b", ""); return err }},
-		{"DescribeObject", func() error { _, err := s.DescribeObject(ctx, "b", "k"); return err }},
-		{"DownloadObject", func() error { _, err := s.DownloadObject(ctx, "b", "k"); return err }},
+		{"nil config", &config.Config{}, false},
+		{"nil aws", &config.Config{AWS: nil}, false},
+		{"empty region", &config.Config{AWS: &config.AWSConfig{Region: ""}}, false},
+		{"valid", &config.Config{AWS: &config.AWSConfig{Region: "us-east-1"}}, true},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := tt.fn()
-			if err == nil {
-				t.Fatal("expected error, got nil")
-			}
-			if !strings.Contains(err.Error(), "not yet implemented") {
-				t.Errorf("expected 'not yet implemented' error, got: %v", err)
+			if got := isConfigured(tt.cfg); got != tt.want {
+				t.Errorf("isConfigured() = %v, want %v", got, tt.want)
 			}
 		})
 	}

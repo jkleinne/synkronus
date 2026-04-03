@@ -63,8 +63,9 @@ type Object struct {
 	CRC32C  string `json:"crc32c,omitempty" yaml:"crc32c,omitempty"` // GCP specific
 
 	// Versioning information
-	Generation     int64 `json:"generation,omitempty" yaml:"generation,omitempty"`         // GCP specific
-	Metageneration int64 `json:"metageneration,omitempty" yaml:"metageneration,omitempty"` // GCP specific
+	Generation     int64  `json:"generation,omitempty" yaml:"generation,omitempty"`         // GCP specific
+	Metageneration int64  `json:"metageneration,omitempty" yaml:"metageneration,omitempty"` // GCP specific
+	VersionID      string `json:"version_id,omitempty" yaml:"version_id,omitempty"`         // AWS specific
 
 	Encryption *Encryption `json:"encryption,omitempty" yaml:"encryption,omitempty"`
 
@@ -106,10 +107,21 @@ type RetentionPolicy struct {
 
 // IAMPolicy represents the IAM policy attached to a resource
 type IAMPolicy struct {
-	// Associates a list of principals with a role
+	// GCP: associates a list of principals with a role
 	Bindings []IAMBinding `json:"bindings,omitempty" yaml:"bindings,omitempty"`
 	// Indicates if the policy contains conditional bindings that are not displayed
 	HasConditions bool `json:"has_conditions" yaml:"has_conditions"`
+	// AWS: S3 bucket policy statements
+	Statements []PolicyStatement `json:"statements,omitempty" yaml:"statements,omitempty"`
+}
+
+// PolicyStatement represents a single statement in an AWS S3 bucket policy
+type PolicyStatement struct {
+	Effect     string                         `json:"effect" yaml:"effect"`
+	Principals []string                       `json:"principals" yaml:"principals"`
+	Actions    []string                       `json:"actions" yaml:"actions"`
+	Resources  []string                       `json:"resources" yaml:"resources"`
+	Conditions map[string]map[string][]string `json:"conditions,omitempty" yaml:"conditions,omitempty"`
 }
 
 // IAMBinding represents a single binding in an IAM policy
@@ -133,6 +145,7 @@ type LifecycleCondition struct {
 	CreatedBefore       time.Time `json:"created_before,omitempty" yaml:"created_before,omitempty"`
 	MatchesStorageClass []string  `json:"matches_storage_class,omitempty" yaml:"matches_storage_class,omitempty"`
 	NumNewerVersions    int       `json:"num_newer_versions" yaml:"num_newer_versions"`
+	Prefix              string    `json:"prefix,omitempty" yaml:"prefix,omitempty"` // S3-specific
 }
 
 func FormatBytes(bytes int64) string {

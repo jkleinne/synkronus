@@ -1,0 +1,11 @@
+# Development only — not for production use.
+# Start: docker compose -f docker-compose.dev.yml up -d
+# Stop:  docker compose -f docker-compose.dev.yml down
+services:
+  localstack:
+    image: localstack/localstack:4.4
+    ports:
+      - "4566:4566"
+    environment:
+      - SERVICES=s3
+      - LOCALSTACK_ACKNOWLEDGE_ACCOUNT_REQUIREMENT=1

@@ -24,13 +24,17 @@ func (v BucketListView) RenderTable() string {
 	table := NewTable([]string{"BUCKET NAME", "PROVIDER", "LOCATION", "USAGE", "STORAGE CLASS", "CREATED"})
 
 	for _, bucket := range v {
+		createdAt := timeNotAvailable
+		if !bucket.CreatedAt.IsZero() {
+			createdAt = bucket.CreatedAt.Format("2006-01-02")
+		}
 		table.AddRow([]string{
 			bucket.Name,
 			string(bucket.Provider),
 			bucket.Location,
 			storage.FormatBytes(bucket.UsageBytes),
 			bucket.StorageClass,
-			bucket.CreatedAt.Format("2006-01-02"),
+			createdAt,
 		})
 	}
 
@@ -87,8 +91,17 @@ func (v BucketDetailView) renderOverview() string {
 		table.AddRow([]string{"Requester Pays", requesterPaysStatus})
 	}
 
-	table.AddRow([]string{"Created On", v.CreatedAt.Format(time.RFC1123)})
-	table.AddRow([]string{"Updated On", v.UpdatedAt.Format(time.RFC1123)})
+	createdAtStr := timeNotAvailable
+	if !v.CreatedAt.IsZero() {
+		createdAtStr = v.CreatedAt.Format(time.RFC1123)
+	}
+	table.AddRow([]string{"Created On", createdAtStr})
+
+	updatedAtStr := timeNotAvailable
+	if !v.UpdatedAt.IsZero() {
+		updatedAtStr = v.UpdatedAt.Format(time.RFC1123)
+	}
+	table.AddRow([]string{"Updated On", updatedAtStr})
 
 	sb.WriteString(table.String())
 	sb.WriteString("\n\n")
@@ -145,32 +158,57 @@ func (v BucketDetailView) renderIAMPolicy() string {
 		return sb.String()
 	}
 
-	if len(v.IAMPolicy.Bindings) == 0 && !v.IAMPolicy.HasConditions {
+	if len(v.IAMPolicy.Bindings) == 0 && len(v.IAMPolicy.Statements) == 0 && !v.IAMPolicy.HasConditions {
 		sb.WriteString("  (No IAM bindings found)\n\n")
 		return sb.String()
 	}
 
-	iamTable := NewTable([]string{"Role", "Principal(s)"})
+	// GCP: role → principals bindings
+	if len(v.IAMPolicy.Bindings) > 0 {
+		iamTable := NewTable([]string{"Role", "Principal(s)"})
 
-	for _, binding := range v.IAMPolicy.Bindings {
-		if len(binding.Principals) == 0 {
-			continue
+		for _, binding := range v.IAMPolicy.Bindings {
+			if len(binding.Principals) == 0 {
+				continue
+			}
+
+			iamTable.AddRow([]string{binding.Role, binding.Principals[0]})
+
+			for i := 1; i < len(binding.Principals); i++ {
+				iamTable.AddRow([]string{"", binding.Principals[i]})
+			}
 		}
 
-		iamTable.AddRow([]string{binding.Role, binding.Principals[0]})
+		sb.WriteString(iamTable.String())
+		sb.WriteString("\n")
 
-		for i := 1; i < len(binding.Principals); i++ {
-			iamTable.AddRow([]string{"", binding.Principals[i]})
+		if v.IAMPolicy.HasConditions {
+			sb.WriteString("Note: This policy contains conditional bindings which are not displayed here.\n")
 		}
+		sb.WriteString("\n")
 	}
 
-	sb.WriteString(iamTable.String())
-	sb.WriteString("\n")
-
-	if v.IAMPolicy.HasConditions {
-		sb.WriteString("Note: This policy contains conditional bindings which are not displayed here.\n")
+	// AWS: bucket policy statements
+	if len(v.IAMPolicy.Statements) > 0 {
+		sb.WriteString("Bucket Policy Statements:\n")
+		stmtTable := NewTable([]string{"Effect", "Principal(s)", "Action(s)", "Resource(s)"})
+		condCount := 0
+		for _, stmt := range v.IAMPolicy.Statements {
+			stmtTable.AddRow([]string{
+				stmt.Effect,
+				strings.Join(stmt.Principals, ", "),
+				strings.Join(stmt.Actions, ", "),
+				strings.Join(stmt.Resources, ", "),
+			})
+			condCount += len(stmt.Conditions)
+		}
+		sb.WriteString(stmtTable.String())
+		sb.WriteString("\n")
+		if condCount > 0 {
+			sb.WriteString(fmt.Sprintf("Note: %d condition(s) present — use --output json for full details.\n", condCount))
+		}
+		sb.WriteString("\n")
 	}
-	sb.WriteString("\n")
 
 	return sb.String()
 }
@@ -269,6 +307,9 @@ func (v BucketDetailView) renderLifecycle() string {
 		if !rule.Condition.CreatedBefore.IsZero() {
 			conditions = append(conditions, fmt.Sprintf("CreatedBefore = %s", rule.Condition.CreatedBefore.Format("2006-01-02")))
 		}
+		if rule.Condition.Prefix != "" {
+			conditions = append(conditions, fmt.Sprintf("Prefix = %s", rule.Condition.Prefix))
+		}
 		table.AddRow([]string{rule.Action, strings.Join(conditions, " AND ")})
 	}
 
@@ -321,11 +362,15 @@ func (v ObjectListView) RenderTable() string {
 	}
 
 	for _, obj := range v.Objects {
+		lastMod := timeNotAvailable
+		if !obj.LastModified.IsZero() {
+			lastMod = obj.LastModified.Format(time.RFC3339)
+		}
 		table.AddRow([]string{
 			obj.Key,
 			storage.FormatBytes(obj.Size),
 			obj.StorageClass,
-			obj.LastModified.Format(time.RFC3339),
+			lastMod,
 		})
 	}
 
@@ -362,7 +407,11 @@ func (v ObjectDetailView) renderOverview() string {
 	table.AddRow([]string{"Size", storage.FormatBytes(v.Size)})
 	table.AddRow([]string{"Storage Class", v.StorageClass})
 
-	table.AddRow([]string{"Last Modified", v.LastModified.Format(time.RFC1123)})
+	lastModifiedStr := timeNotAvailable
+	if !v.LastModified.IsZero() {
+		lastModifiedStr = v.LastModified.Format(time.RFC1123)
+	}
+	table.AddRow([]string{"Last Modified", lastModifiedStr})
 
 	createdAtStr := timeNotAvailable
 	if !v.CreatedAt.IsZero() {
@@ -390,6 +439,9 @@ func (v ObjectDetailView) renderOverview() string {
 		}
 		table.AddRow([]string{"Generation", fmt.Sprintf("%d", v.Generation)})
 		table.AddRow([]string{"Metageneration", fmt.Sprintf("%d", v.Metageneration)})
+	}
+	if v.Provider == domain.AWS && v.VersionID != "" {
+		table.AddRow([]string{"Version ID", v.VersionID})
 	}
 
 	sb.WriteString(table.String())

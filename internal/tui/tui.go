@@ -83,6 +83,7 @@ type storageState struct {
 	createUniformAccess          string // "yes"/"no"/""
 	createPublicAccessPrevention string // "enforced"/"inherited"/""
 	createField                  int
+	createHiddenFields           map[int]bool
 	deleteInput                  string
 	downloadingKey               string // non-empty when a download is in progress, for spinner text
 	downloadDir                  string // directory path entered in the download overlay
@@ -392,6 +393,7 @@ func (m *Model) renderOverlay() string {
 				UniformAccess:          m.storage.createUniformAccess,
 				PublicAccessPrevention: m.storage.createPublicAccessPrevention,
 				SelectorFields:         selectorFields,
+				HiddenFields:           m.storage.createHiddenFields,
 			},
 			m.storage.createField,
 			m.textInput.View(),
