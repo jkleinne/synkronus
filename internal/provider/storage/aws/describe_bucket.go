@@ -63,7 +63,7 @@ func (s *AWSStorage) DescribeBucket(ctx context.Context, bucketName string) (sto
 	eg.Go(func() error {
 		out, err := s.client.GetBucketEncryption(egCtx, &s3.GetBucketEncryptionInput{Bucket: &bucketName})
 		if err != nil {
-			if isS3NotFoundError(err) {
+			if isS3NotConfiguredError(err) {
 				return nil
 			}
 			s.logger.Warn("Could not retrieve encryption", "bucket", bucketName, "error", err)
@@ -78,7 +78,7 @@ func (s *AWSStorage) DescribeBucket(ctx context.Context, bucketName string) (sto
 	eg.Go(func() error {
 		out, err := s.client.GetBucketLifecycleConfiguration(egCtx, &s3.GetBucketLifecycleConfigurationInput{Bucket: &bucketName})
 		if err != nil {
-			if isS3NotFoundError(err) {
+			if isS3NotConfiguredError(err) {
 				return nil
 			}
 			s.logger.Warn("Could not retrieve lifecycle configuration", "bucket", bucketName, "error", err)
@@ -91,7 +91,7 @@ func (s *AWSStorage) DescribeBucket(ctx context.Context, bucketName string) (sto
 	eg.Go(func() error {
 		out, err := s.client.GetBucketTagging(egCtx, &s3.GetBucketTaggingInput{Bucket: &bucketName})
 		if err != nil {
-			if isS3NotFoundError(err) {
+			if isS3NotConfiguredError(err) {
 				return nil
 			}
 			s.logger.Warn("Could not retrieve tags", "bucket", bucketName, "error", err)
@@ -104,7 +104,7 @@ func (s *AWSStorage) DescribeBucket(ctx context.Context, bucketName string) (sto
 	eg.Go(func() error {
 		out, err := s.client.GetBucketPolicy(egCtx, &s3.GetBucketPolicyInput{Bucket: &bucketName})
 		if err != nil {
-			if isS3NotFoundError(err) {
+			if isS3NotConfiguredError(err) {
 				return nil
 			}
 			s.logger.Warn("Could not retrieve bucket policy", "bucket", bucketName, "error", err)
@@ -134,7 +134,7 @@ func (s *AWSStorage) DescribeBucket(ctx context.Context, bucketName string) (sto
 	eg.Go(func() error {
 		out, err := s.client.GetPublicAccessBlock(egCtx, &s3.GetPublicAccessBlockInput{Bucket: &bucketName})
 		if err != nil {
-			if isS3NotFoundError(err) {
+			if isS3NotConfiguredError(err) {
 				return nil
 			}
 			s.logger.Warn("Could not retrieve public access block", "bucket", bucketName, "error", err)
@@ -157,7 +157,7 @@ func (s *AWSStorage) DescribeBucket(ctx context.Context, bucketName string) (sto
 	eg.Go(func() error {
 		out, err := s.client.GetObjectLockConfiguration(egCtx, &s3.GetObjectLockConfigurationInput{Bucket: &bucketName})
 		if err != nil {
-			if isS3NotFoundError(err) {
+			if isS3NotConfiguredError(err) {
 				return nil
 			}
 			s.logger.Warn("Could not retrieve object lock configuration", "bucket", bucketName, "error", err)
@@ -185,9 +185,9 @@ func (s *AWSStorage) DescribeBucket(ctx context.Context, bucketName string) (sto
 	return bucket, nil
 }
 
-// isS3NotFoundError checks if an error is an S3 "not configured" error
+// isS3NotConfiguredError checks if an error is an S3 "not configured" error
 // (e.g., NoSuchTagSet, NoSuchBucketPolicy, NoSuchLifecycleConfiguration).
-func isS3NotFoundError(err error) bool {
+func isS3NotConfiguredError(err error) bool {
 	var apiErr smithy.APIError
 	if !errors.As(err, &apiErr) {
 		return false

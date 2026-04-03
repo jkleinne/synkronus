@@ -17,24 +17,27 @@ func (s *AWSStorage) ListBuckets(ctx context.Context) ([]storage.Bucket, error) 
 		BucketRegion: &s.region,
 	}
 
-	output, err := s.client.ListBuckets(ctx, input)
-	if err != nil {
-		return nil, fmt.Errorf("failed to list S3 buckets: %w", err)
-	}
+	var buckets []storage.Bucket
+	paginator := s3.NewListBucketsPaginator(s.client, input)
+	for paginator.HasMorePages() {
+		page, err := paginator.NextPage(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to list S3 buckets: %w", err)
+		}
 
-	buckets := make([]storage.Bucket, 0, len(output.Buckets))
-	for _, b := range output.Buckets {
-		bucket := storage.Bucket{
-			Name:         derefString(b.Name),
-			Provider:     domain.AWS,
-			Location:     s.region,
-			StorageClass: "STANDARD",
-			UsageBytes:   -1,
+		for _, b := range page.Buckets {
+			bucket := storage.Bucket{
+				Name:         derefString(b.Name),
+				Provider:     domain.AWS,
+				Location:     s.region,
+				StorageClass: "STANDARD",
+				UsageBytes:   -1,
+			}
+			if b.CreationDate != nil {
+				bucket.CreatedAt = *b.CreationDate
+			}
+			buckets = append(buckets, bucket)
 		}
-		if b.CreationDate != nil {
-			bucket.CreatedAt = *b.CreationDate
-		}
-		buckets = append(buckets, bucket)
 	}
 
 	return buckets, nil

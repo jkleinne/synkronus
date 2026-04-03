@@ -14,41 +14,44 @@ func (s *AWSStorage) ListObjects(ctx context.Context, bucketName string, prefix 
 	s.logger.Debug("Starting AWS ListObjects operation", "bucket", bucketName, "prefix", prefix)
 
 	delimiter := "/"
+	result := storage.ObjectList{
+		BucketName:     bucketName,
+		Prefix:         prefix,
+		Objects:        []storage.Object{},
+		CommonPrefixes: []string{},
+	}
+
 	input := &s3.ListObjectsV2Input{
 		Bucket:    &bucketName,
 		Prefix:    &prefix,
 		Delimiter: &delimiter,
 	}
 
-	output, err := s.client.ListObjectsV2(ctx, input)
-	if err != nil {
-		return storage.ObjectList{}, fmt.Errorf("failed to list S3 objects: %w", err)
-	}
-
-	result := storage.ObjectList{
-		BucketName:     bucketName,
-		Prefix:         prefix,
-		Objects:        make([]storage.Object, 0, len(output.Contents)),
-		CommonPrefixes: make([]string, 0, len(output.CommonPrefixes)),
-	}
-
-	for _, cp := range output.CommonPrefixes {
-		result.CommonPrefixes = append(result.CommonPrefixes, derefString(cp.Prefix))
-	}
-
-	for _, obj := range output.Contents {
-		o := storage.Object{
-			Key:          derefString(obj.Key),
-			Bucket:       bucketName,
-			Provider:     domain.AWS,
-			Size:         derefInt64(obj.Size),
-			StorageClass: string(obj.StorageClass),
-			ETag:         derefString(obj.ETag),
+	paginator := s3.NewListObjectsV2Paginator(s.client, input)
+	for paginator.HasMorePages() {
+		page, err := paginator.NextPage(ctx)
+		if err != nil {
+			return storage.ObjectList{}, fmt.Errorf("failed to list S3 objects: %w", err)
 		}
-		if obj.LastModified != nil {
-			o.LastModified = *obj.LastModified
+
+		for _, cp := range page.CommonPrefixes {
+			result.CommonPrefixes = append(result.CommonPrefixes, derefString(cp.Prefix))
 		}
-		result.Objects = append(result.Objects, o)
+
+		for _, obj := range page.Contents {
+			o := storage.Object{
+				Key:          derefString(obj.Key),
+				Bucket:       bucketName,
+				Provider:     domain.AWS,
+				Size:         derefInt64(obj.Size),
+				StorageClass: storageClassOrDefault(string(obj.StorageClass)),
+				ETag:         derefString(obj.ETag),
+			}
+			if obj.LastModified != nil {
+				o.LastModified = *obj.LastModified
+			}
+			result.Objects = append(result.Objects, o)
+		}
 	}
 
 	return result, nil
@@ -70,7 +73,7 @@ func (s *AWSStorage) DescribeObject(ctx context.Context, bucketName string, obje
 		Bucket:             bucketName,
 		Provider:           domain.AWS,
 		Size:               derefInt64(out.ContentLength),
-		StorageClass:       string(out.StorageClass),
+		StorageClass:       storageClassOrDefault(string(out.StorageClass)),
 		ETag:               derefString(out.ETag),
 		ContentType:        derefString(out.ContentType),
 		ContentEncoding:    derefString(out.ContentEncoding),
@@ -110,6 +113,15 @@ func (s *AWSStorage) DownloadObject(ctx context.Context, bucketName string, obje
 	}
 
 	return out.Body, nil
+}
+
+// storageClassOrDefault returns "STANDARD" when S3 omits the storage class
+// (which it does for STANDARD-class objects).
+func storageClassOrDefault(sc string) string {
+	if sc == "" {
+		return "STANDARD"
+	}
+	return sc
 }
 
 func derefInt64(p *int64) int64 {

@@ -362,11 +362,15 @@ func (v ObjectListView) RenderTable() string {
 	}
 
 	for _, obj := range v.Objects {
+		lastMod := timeNotAvailable
+		if !obj.LastModified.IsZero() {
+			lastMod = obj.LastModified.Format(time.RFC3339)
+		}
 		table.AddRow([]string{
 			obj.Key,
 			storage.FormatBytes(obj.Size),
 			obj.StorageClass,
-			obj.LastModified.Format(time.RFC3339),
+			lastMod,
 		})
 	}
 
@@ -403,7 +407,11 @@ func (v ObjectDetailView) renderOverview() string {
 	table.AddRow([]string{"Size", storage.FormatBytes(v.Size)})
 	table.AddRow([]string{"Storage Class", v.StorageClass})
 
-	table.AddRow([]string{"Last Modified", v.LastModified.Format(time.RFC1123)})
+	lastModifiedStr := timeNotAvailable
+	if !v.LastModified.IsZero() {
+		lastModifiedStr = v.LastModified.Format(time.RFC1123)
+	}
+	table.AddRow([]string{"Last Modified", lastModifiedStr})
 
 	createdAtStr := timeNotAvailable
 	if !v.CreatedAt.IsZero() {
