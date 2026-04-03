@@ -84,6 +84,7 @@ type storageState struct {
 	createPublicAccessPrevention string // "enforced"/"inherited"/""
 	createField                  int
 	deleteInput                  string
+	downloadingKey               string // non-empty when a download is in progress, for spinner text
 }
 
 // sqlState holds the mutable state for the SQL tab.
@@ -177,6 +178,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.handleBucketCreated(msg)
 	case BucketDeletedMsg:
 		return m.handleBucketDeleted(msg)
+	case ObjectDownloadedMsg:
+		return m.handleObjectDownloaded(msg)
 	case ConfigUpdatedMsg:
 		return m.handleConfigUpdated(msg)
 	case ConfigDeletedMsg:
@@ -319,13 +322,21 @@ func (m *Model) renderContent() string {
 
 	case ViewStorageObjectList:
 		if m.storage.loading {
-			return ui.CenterContent(ui.RenderSpinnerView(m.spinner.View(), "Loading objects..."), m.width)
+			spinnerMsg := "Loading objects..."
+			if m.storage.downloadingKey != "" {
+				spinnerMsg = fmt.Sprintf("Downloading %s...", m.storage.downloadingKey)
+			}
+			return ui.CenterContent(ui.RenderSpinnerView(m.spinner.View(), spinnerMsg), m.width)
 		}
 		return ui.RenderObjectList(m.storage.objects, m.storage.cursor, m.storage.scrollOffset, m.width)
 
 	case ViewStorageObjectDetail:
 		if m.storage.loading {
-			return ui.CenterContent(ui.RenderSpinnerView(m.spinner.View(), "Loading object details..."), m.width)
+			spinnerMsg := "Loading object details..."
+			if m.storage.downloadingKey != "" {
+				spinnerMsg = fmt.Sprintf("Downloading %s...", m.storage.downloadingKey)
+			}
+			return ui.CenterContent(ui.RenderSpinnerView(m.spinner.View(), spinnerMsg), m.width)
 		}
 		return ui.RenderObjectDetail(m.storage.selectedObject, m.width)
 

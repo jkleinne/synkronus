@@ -44,6 +44,9 @@ const (
 	// PublicAccessPreventionFlag flags set public access prevention policy on bucket creation
 	PublicAccessPreventionFlag = "public-access-prevention"
 
+	// OutputPath flags specify the file or directory path for download output
+	OutputPath = "output-path"
+
 	// Debug flags are used to enable verbose logging
 	Debug      = "debug"
 	DebugShort = "d"

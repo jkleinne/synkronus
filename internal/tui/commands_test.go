@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"strings"
 	"testing"
 
 	"synkronus/internal/tui/ui"
@@ -82,5 +83,58 @@ func TestConfigEntryType(t *testing.T) {
 	entry := ui.ConfigEntry{Key: "test", Value: "value"}
 	if entry.Key != "test" || entry.Value != "value" {
 		t.Error("ConfigEntry should hold key-value pairs")
+	}
+}
+
+func TestObjectBasename_ValidKeys(t *testing.T) {
+	tests := []struct {
+		name string
+		key  string
+		want string
+	}{
+		{"simple file", "photo.jpg", "photo.jpg"},
+		{"nested path", "dir/subdir/file.txt", "file.txt"},
+		{"no extension", "readme", "readme"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := objectBasename(tt.key)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if got != tt.want {
+				t.Errorf("objectBasename(%q) = %q, want %q", tt.key, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestObjectBasename_DirectoryMarker(t *testing.T) {
+	_, err := objectBasename("dir/")
+	if err == nil {
+		t.Fatal("expected error for directory marker")
+	}
+	if !strings.Contains(err.Error(), "cannot download directory marker") {
+		t.Errorf("error = %q, want containing 'cannot download directory marker'", err.Error())
+	}
+}
+
+func TestObjectBasename_Degenerate(t *testing.T) {
+	tests := []struct {
+		name string
+		key  string
+	}{
+		{"dot only", "."},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := objectBasename(tt.key)
+			if err == nil {
+				t.Fatalf("expected error for degenerate key %q", tt.key)
+			}
+			if !strings.Contains(err.Error(), "cannot derive filename") {
+				t.Errorf("error = %q, want containing 'cannot derive filename'", err.Error())
+			}
+		})
 	}
 }

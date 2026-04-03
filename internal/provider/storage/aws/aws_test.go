@@ -28,6 +28,7 @@ func TestAllMethodsReturnNotImplemented(t *testing.T) {
 		{"DeleteBucket", func() error { return s.DeleteBucket(ctx, "b") }},
 		{"ListObjects", func() error { _, err := s.ListObjects(ctx, "b", ""); return err }},
 		{"DescribeObject", func() error { _, err := s.DescribeObject(ctx, "b", "k"); return err }},
+		{"DownloadObject", func() error { _, err := s.DownloadObject(ctx, "b", "k"); return err }},
 	}
 
 	for _, tt := range tests {

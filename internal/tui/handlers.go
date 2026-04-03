@@ -2,6 +2,7 @@
 package tui
 
 import (
+	"fmt"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -504,6 +505,25 @@ func (m *Model) handleObjectListKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				)
 			}
 		}
+	case "w":
+		if totalItems > 0 {
+			prefixCount := len(m.storage.objects.CommonPrefixes)
+			if m.storage.cursor >= prefixCount {
+				objIdx := m.storage.cursor - prefixCount
+				if objIdx < len(m.storage.objects.Objects) {
+					obj := m.storage.objects.Objects[objIdx]
+					m.storage.loading = true
+					m.storage.downloadingKey = obj.Key
+					m.err = nil
+					return m, downloadObjectCmd(
+						m.storageService,
+						m.storage.selectedBucket.Name,
+						obj.Key,
+						strings.ToLower(string(m.storage.selectedBucket.Provider)),
+					)
+				}
+			}
+		}
 	case keyEsc:
 		m.viewState = ViewStorageBucketDetail
 		m.storage.cursor = 0
@@ -521,6 +541,16 @@ func (m *Model) handleObjectDetailKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case keyEsc:
 		m.viewState = ViewStorageObjectList
 		m.err = nil
+	case "w":
+		m.storage.loading = true
+		m.storage.downloadingKey = m.storage.selectedObject.Key
+		m.err = nil
+		return m, downloadObjectCmd(
+			m.storageService,
+			m.storage.selectedBucket.Name,
+			m.storage.selectedObject.Key,
+			strings.ToLower(string(m.storage.selectedBucket.Provider)),
+		)
 	case "j", keyDown:
 		m.storage.scrollOffset++
 	case "k", keyUp:
@@ -754,6 +784,17 @@ func (m *Model) handleObjectDetailLoaded(msg ObjectDetailMsg) (tea.Model, tea.Cm
 	}
 	m.storage.selectedObject = msg.Object
 	return m, nil
+}
+
+func (m *Model) handleObjectDownloaded(msg ObjectDownloadedMsg) (tea.Model, tea.Cmd) {
+	m.storage.loading = false
+	m.storage.downloadingKey = ""
+	if msg.Err != nil {
+		m.err = msg.Err
+		return m, nil
+	}
+	m.statusMessage = fmt.Sprintf("Downloaded to %s", msg.FilePath)
+	return m, clearStatusCmd()
 }
 
 func (m *Model) handleInstancesLoaded(msg InstancesLoadedMsg) (tea.Model, tea.Cmd) {

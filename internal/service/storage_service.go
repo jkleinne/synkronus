@@ -3,11 +3,13 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 
-	"synkronus/internal/provider/factory"
 	"synkronus/internal/domain/storage"
+	"synkronus/internal/provider/factory"
 )
 
 type StorageService struct {
@@ -127,6 +129,37 @@ func (s *StorageService) DescribeObject(ctx context.Context, bucketName, objectK
 		return storage.Object{}, err
 	}
 	return object, nil
+}
+
+func (s *StorageService) DownloadObject(ctx context.Context, bucketName, objectKey, providerName string) (io.ReadCloser, error) {
+	s.logger.Debug("Starting DownloadObject operation", "bucket", bucketName, "object", objectKey, "provider", providerName)
+
+	client, err := s.getStorageClient(ctx, providerName)
+	if err != nil {
+		return nil, err
+	}
+
+	reader, err := client.DownloadObject(ctx, bucketName, objectKey)
+	if err != nil {
+		client.Close()
+		s.logger.Error("Failed to download object", "bucket", bucketName, "object", objectKey, "provider", providerName, "error", err)
+		return nil, err
+	}
+
+	return &readerWithCleanup{ReadCloser: reader, cleanup: client.Close}, nil
+}
+
+// readerWithCleanup wraps an io.ReadCloser to run a cleanup function (e.g., client.Close)
+// when the reader is closed. This ensures the provider client outlives the reader.
+type readerWithCleanup struct {
+	io.ReadCloser
+	cleanup func() error
+}
+
+func (r *readerWithCleanup) Close() error {
+	readErr := r.ReadCloser.Close()
+	cleanupErr := r.cleanup()
+	return errors.Join(readErr, cleanupErr)
 }
 
 // Helper to initialize the storage client and handle common error logging

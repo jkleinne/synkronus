@@ -3,6 +3,10 @@ package tui
 import (
 	"context"
 	"fmt"
+	"io"
+	"os"
+	"path/filepath"
+	"strings"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -65,6 +69,12 @@ type BucketCreatedMsg struct{ Err error }
 
 // BucketDeletedMsg is sent when a bucket deletion operation completes.
 type BucketDeletedMsg struct{ Err error }
+
+// ObjectDownloadedMsg is sent when an object download operation completes.
+type ObjectDownloadedMsg struct {
+	FilePath string
+	Err      error
+}
 
 // ConfigUpdatedMsg is sent when a config set operation completes.
 type ConfigUpdatedMsg struct{ Err error }
@@ -167,6 +177,57 @@ func deleteBucketCmd(svc *service.StorageService, name, provider string) tea.Cmd
 		err := svc.DeleteBucket(ctx, name, provider)
 		return BucketDeletedMsg{Err: err}
 	}
+}
+
+// downloadObjectCmd downloads an object to the current working directory.
+func downloadObjectCmd(svc *service.StorageService, bucketName, objectKey, provider string) tea.Cmd {
+	return func() tea.Msg {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+		defer cancel()
+
+		basename, err := objectBasename(objectKey)
+		if err != nil {
+			return ObjectDownloadedMsg{Err: err}
+		}
+
+		reader, err := svc.DownloadObject(ctx, bucketName, objectKey, provider)
+		if err != nil {
+			return ObjectDownloadedMsg{Err: fmt.Errorf("download failed: %w", err)}
+		}
+		defer reader.Close()
+
+		destPath := filepath.Join(".", basename)
+
+		f, err := os.Create(destPath)
+		if err != nil {
+			return ObjectDownloadedMsg{Err: fmt.Errorf("error creating file '%s': %w", destPath, err)}
+		}
+
+		_, copyErr := io.Copy(f, reader)
+		closeErr := f.Close()
+
+		if copyErr != nil {
+			os.Remove(destPath)
+			return ObjectDownloadedMsg{Err: fmt.Errorf("error writing to '%s': %w", destPath, copyErr)}
+		}
+		if closeErr != nil {
+			return ObjectDownloadedMsg{Err: fmt.Errorf("error closing '%s': %w", destPath, closeErr)}
+		}
+
+		return ObjectDownloadedMsg{FilePath: destPath}
+	}
+}
+
+// objectBasename extracts a safe filename from an object key.
+func objectBasename(objectKey string) (string, error) {
+	if strings.HasSuffix(objectKey, "/") {
+		return "", fmt.Errorf("cannot download directory marker object '%s'", objectKey)
+	}
+	base := filepath.Base(objectKey)
+	if base == "." || base == "" {
+		return "", fmt.Errorf("cannot derive filename from object key '%s'", objectKey)
+	}
+	return base, nil
 }
 
 // setConfigCmd persists a single config key-value pair.

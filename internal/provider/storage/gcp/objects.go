@@ -4,6 +4,7 @@ package gcp
 import (
 	"context"
 	"fmt"
+	"io"
 	"synkronus/internal/domain"
 	"synkronus/internal/domain/storage"
 
@@ -122,4 +123,14 @@ func mapObjectAttributes(attrs *gcpstorage.ObjectAttrs, encryption *storage.Encr
 		Metadata:           attrs.Metadata,
 		Encryption:         encryption,
 	}
+}
+
+func (g *GCPStorage) DownloadObject(ctx context.Context, bucketName string, objectKey string) (io.ReadCloser, error) {
+	g.logger.Debug("Starting GCP DownloadObject operation", "bucket", bucketName, "object", objectKey)
+
+	reader, err := g.client.Bucket(bucketName).Object(objectKey).NewReader(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open object reader: %w", err)
+	}
+	return reader, nil
 }

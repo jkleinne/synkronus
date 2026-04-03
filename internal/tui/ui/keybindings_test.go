@@ -14,6 +14,8 @@ func TestBindingsForContext(t *testing.T) {
 		{ContextSqlList, []string{"Enter", "j/k", "r", "Tab", "h", "q"}},
 		{ContextConfigList, []string{"Enter", "a", "d", "j/k", "r", "Tab", "h", "q"}},
 		{ContextBucketDetail, []string{"o", "d", "j/k", "Esc", "q"}},
+		{ContextObjectList, []string{"Enter", "j/k", "Esc", "q", "w"}},
+		{ContextObjectDetail, []string{"j/k", "Esc", "q", "w"}},
 		{ContextModal, []string{"Enter", "Esc"}},
 	}
 	for _, tt := range tests {

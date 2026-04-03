@@ -4,6 +4,7 @@ package aws
 import (
 	"context"
 	"fmt"
+	"io"
 	"log/slog"
 	"synkronus/internal/config"
 	"synkronus/internal/domain"
@@ -73,6 +74,10 @@ func (s *AWSStorage) ListObjects(ctx context.Context, bucketName string, prefix 
 func (s *AWSStorage) DescribeObject(ctx context.Context, bucketName string, objectKey string) (storage.Object, error) {
 	s.logger.Debug("Describing AWS object (placeholder)", "bucket", bucketName, "objectKey", objectKey)
 	return storage.Object{}, fmt.Errorf("AWS DescribeObject is not yet implemented")
+}
+
+func (s *AWSStorage) DownloadObject(ctx context.Context, bucketName string, objectKey string) (io.ReadCloser, error) {
+	return nil, fmt.Errorf("AWS DownloadObject is not yet implemented")
 }
 
 func (s *AWSStorage) Close() error {

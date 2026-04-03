@@ -16,6 +16,7 @@ func newStorageCmd() *cobra.Command {
 		newDeleteBucketCmd(),
 		newListObjectsCmd(),
 		newDescribeObjectCmd(),
+		newDownloadObjectCmd(),
 	)
 	return cmd
 }
