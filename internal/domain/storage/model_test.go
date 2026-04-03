@@ -2,6 +2,34 @@ package storage
 
 import "testing"
 
+func TestCreateBucketOptions_DefaultsAreNil(t *testing.T) {
+	opts := CreateBucketOptions{}
+	if opts.Versioning != nil {
+		t.Error("zero-value Versioning should be nil")
+	}
+	if opts.UniformBucketLevelAccess != nil {
+		t.Error("zero-value UniformBucketLevelAccess should be nil")
+	}
+	if opts.PublicAccessPrevention != nil {
+		t.Error("zero-value PublicAccessPrevention should be nil")
+	}
+	if opts.Labels != nil {
+		t.Error("zero-value Labels should be nil")
+	}
+	if opts.StorageClass != "" {
+		t.Errorf("zero-value StorageClass = %q, want empty", opts.StorageClass)
+	}
+}
+
+func TestPublicAccessPreventionConstants(t *testing.T) {
+	if PublicAccessPreventionEnforced != "enforced" {
+		t.Errorf("PublicAccessPreventionEnforced = %q, want enforced", PublicAccessPreventionEnforced)
+	}
+	if PublicAccessPreventionInherited != "inherited" {
+		t.Errorf("PublicAccessPreventionInherited = %q, want inherited", PublicAccessPreventionInherited)
+	}
+}
+
 func TestFormatBytes(t *testing.T) {
 	tests := []struct {
 		name     string
