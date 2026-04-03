@@ -35,7 +35,13 @@ func uniqueBucketName(t *testing.T) string {
 	name := strings.ToLower(t.Name())
 	name = strings.ReplaceAll(name, "/", "-")
 	name = strings.ReplaceAll(name, "_", "-")
-	return fmt.Sprintf("test-%s-%d", name, time.Now().UnixNano())
+	// S3 bucket names must be 3-63 characters
+	suffix := fmt.Sprintf("%d", time.Now().UnixNano()%1000000)
+	full := fmt.Sprintf("t-%s-%s", name, suffix)
+	if len(full) > 63 {
+		full = full[:63]
+	}
+	return full
 }
 
 func TestIntegration_BucketLifecycle(t *testing.T) {
