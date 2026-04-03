@@ -1,6 +1,8 @@
 package tui
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -134,6 +136,37 @@ func TestObjectBasename_Degenerate(t *testing.T) {
 			}
 			if !strings.Contains(err.Error(), "cannot derive filename") {
 				t.Errorf("error = %q, want containing 'cannot derive filename'", err.Error())
+			}
+		})
+	}
+}
+
+func TestExpandTilde(t *testing.T) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		t.Fatalf("cannot get home dir: %v", err)
+	}
+
+	tests := []struct {
+		name string
+		path string
+		want string
+	}{
+		{"bare tilde", "~", home},
+		{"tilde with subdir", "~/Downloads", filepath.Join(home, "Downloads")},
+		{"tilde nested", "~/a/b/c", filepath.Join(home, "a/b/c")},
+		{"relative path unchanged", "./", "./"},
+		{"absolute path unchanged", "/tmp/data", "/tmp/data"},
+		{"tilde in middle unchanged", "/foo/~/bar", "/foo/~/bar"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := expandTilde(tt.path)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if got != tt.want {
+				t.Errorf("expandTilde(%q) = %q, want %q", tt.path, got, tt.want)
 			}
 		})
 	}

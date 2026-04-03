@@ -175,6 +175,7 @@ func TestHandleOverlayKeys_EscClosesTextOverlay(t *testing.T) {
 		{"CreateBucket", OverlayCreateBucket},
 		{"ConfigAdd", OverlayConfigAdd},
 		{"DeleteConfirm", OverlayDeleteConfirm},
+		{"DownloadPath", OverlayDownloadPath},
 	}
 	for _, tt := range textOverlays {
 		t.Run(tt.name, func(t *testing.T) {
@@ -986,16 +987,16 @@ func TestHandleObjectListKeys_DownloadOnObject(t *testing.T) {
 	}
 	m.storage.cursor = 1 // on the object (index 1 = past 1 prefix)
 
-	_, cmd := m.handleObjectListKeys(runeKey('w'))
+	_, _ = m.handleObjectListKeys(runeKey('w'))
 
-	if !m.storage.loading {
-		t.Error("expected loading = true")
+	if m.overlay != OverlayDownloadPath {
+		t.Errorf("overlay = %d, want OverlayDownloadPath (%d)", m.overlay, OverlayDownloadPath)
 	}
 	if m.storage.downloadingKey != "file.txt" {
 		t.Errorf("downloadingKey = %q, want %q", m.storage.downloadingKey, "file.txt")
 	}
-	if cmd == nil {
-		t.Error("expected non-nil cmd for download")
+	if m.storage.downloadDir != "./" {
+		t.Errorf("downloadDir = %q, want %q", m.storage.downloadDir, "./")
 	}
 }
 
@@ -1024,15 +1025,76 @@ func TestHandleObjectDetailKeys_Download(t *testing.T) {
 	m.storage.selectedBucket = storage.Bucket{Name: "test-bucket", Provider: domain.GCP}
 	m.storage.selectedObject = storage.Object{Key: "path/to/data.csv"}
 
-	_, cmd := m.handleObjectDetailKeys(runeKey('w'))
+	_, _ = m.handleObjectDetailKeys(runeKey('w'))
 
-	if !m.storage.loading {
-		t.Error("expected loading = true")
+	if m.overlay != OverlayDownloadPath {
+		t.Errorf("overlay = %d, want OverlayDownloadPath (%d)", m.overlay, OverlayDownloadPath)
 	}
 	if m.storage.downloadingKey != "path/to/data.csv" {
 		t.Errorf("downloadingKey = %q, want %q", m.storage.downloadingKey, "path/to/data.csv")
 	}
+	if m.storage.downloadDir != "./" {
+		t.Errorf("downloadDir = %q, want %q", m.storage.downloadDir, "./")
+	}
+}
+
+// --- handleOverlaySubmit: DownloadPath ---
+
+func TestHandleOverlaySubmit_DownloadPath_DispatchesDownload(t *testing.T) {
+	m := newTestModel()
+	m.overlay = OverlayDownloadPath
+	m.storage.selectedBucket = storage.Bucket{Name: "test-bucket", Provider: domain.GCP}
+	m.storage.downloadingKey = "dir/file.txt"
+	m.storage.downloadDir = "~/Downloads"
+	m.textInput.SetValue("~/Downloads")
+
+	_, cmd := m.handleOverlaySubmit()
+
+	if m.overlay != OverlayNone {
+		t.Errorf("overlay = %d, want OverlayNone after submit", m.overlay)
+	}
+	if !m.storage.loading {
+		t.Error("expected loading = true after download submit")
+	}
 	if cmd == nil {
 		t.Error("expected non-nil cmd for download")
+	}
+}
+
+func TestHandleOverlaySubmit_DownloadPath_EmptyDirRejectsSubmit(t *testing.T) {
+	tests := []struct {
+		name string
+		dir  string
+	}{
+		{"empty", ""},
+		{"whitespace", "   "},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := newTestModel()
+			m.overlay = OverlayDownloadPath
+			m.storage.downloadDir = tt.dir
+
+			_, cmd := m.handleOverlaySubmit()
+
+			if m.overlay != OverlayDownloadPath {
+				t.Errorf("overlay = %d, want OverlayDownloadPath (should stay open)", m.overlay)
+			}
+			if cmd != nil {
+				t.Error("expected nil cmd when dir is empty")
+			}
+		})
+	}
+}
+
+func TestSyncTextInputToField_DownloadPath(t *testing.T) {
+	m := newTestModel()
+	m.overlay = OverlayDownloadPath
+	m.textInput.SetValue("/tmp/my-downloads")
+
+	m.syncTextInputToField()
+
+	if m.storage.downloadDir != "/tmp/my-downloads" {
+		t.Errorf("downloadDir = %q, want %q", m.storage.downloadDir, "/tmp/my-downloads")
 	}
 }

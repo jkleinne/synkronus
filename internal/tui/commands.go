@@ -179,8 +179,8 @@ func deleteBucketCmd(svc *service.StorageService, name, provider string) tea.Cmd
 	}
 }
 
-// downloadObjectCmd downloads an object to the current working directory.
-func downloadObjectCmd(svc *service.StorageService, bucketName, objectKey, provider string) tea.Cmd {
+// downloadObjectCmd downloads an object to the specified directory.
+func downloadObjectCmd(svc *service.StorageService, bucketName, objectKey, provider, destDir string) tea.Cmd {
 	return func() tea.Msg {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 		defer cancel()
@@ -196,7 +196,12 @@ func downloadObjectCmd(svc *service.StorageService, bucketName, objectKey, provi
 		}
 		defer reader.Close()
 
-		destPath := filepath.Join(".", basename)
+		expandedDir, expandErr := expandTilde(destDir)
+		if expandErr != nil {
+			return ObjectDownloadedMsg{Err: expandErr}
+		}
+
+		destPath := filepath.Join(expandedDir, basename)
 
 		f, err := os.Create(destPath)
 		if err != nil {
@@ -228,6 +233,21 @@ func objectBasename(objectKey string) (string, error) {
 		return "", fmt.Errorf("cannot derive filename from object key '%s'", objectKey)
 	}
 	return base, nil
+}
+
+// expandTilde replaces a leading ~ with the user's home directory.
+func expandTilde(path string) (string, error) {
+	if path == "~" {
+		return os.UserHomeDir()
+	}
+	if strings.HasPrefix(path, "~/") {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return "", err
+		}
+		return filepath.Join(home, path[2:]), nil
+	}
+	return path, nil
 }
 
 // setConfigCmd persists a single config key-value pair.

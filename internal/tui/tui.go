@@ -85,6 +85,7 @@ type storageState struct {
 	createField                  int
 	deleteInput                  string
 	downloadingKey               string // non-empty when a download is in progress, for spinner text
+	downloadDir                  string // directory path entered in the download overlay
 }
 
 // sqlState holds the mutable state for the SQL tab.
@@ -428,6 +429,16 @@ func (m *Model) renderOverlay() string {
 	case OverlayConfigDelete:
 		content := ui.RenderConfigDeleteConfirm(m.config.editKey)
 		return ui.RenderModal("Remove Provider", content, m.width, m.height)
+
+	case OverlayDownloadPath:
+		content := fmt.Sprintf(
+			"%s %s\n\n%s %s",
+			ui.TextDimStyle.Render("Object:"),
+			ui.TextSecondaryStyle.Render(m.storage.downloadingKey),
+			ui.TextDimStyle.Render("Save to:"),
+			m.textInput.View(),
+		)
+		return ui.RenderModal("Download Object", content, m.width, m.height)
 
 	default:
 		return ""

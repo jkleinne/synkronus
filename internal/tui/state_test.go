@@ -24,6 +24,7 @@ func TestOverlayStateConstants(t *testing.T) {
 	overlays := []OverlayState{
 		OverlayNone, OverlayHelp, OverlayCreateBucket,
 		OverlayDeleteConfirm, OverlayConfigAdd, OverlayConfigDelete,
+		OverlayDownloadPath,
 	}
 	seen := make(map[OverlayState]bool)
 	for i, o := range overlays {
@@ -80,6 +81,7 @@ func TestOverlayHasTextInput(t *testing.T) {
 		{OverlayDeleteConfirm, true},
 		{OverlayConfigAdd, true},
 		{OverlayConfigDelete, false},
+		{OverlayDownloadPath, true},
 	}
 	for _, tt := range tests {
 		if got := tt.overlay.hasTextInput(); got != tt.want {

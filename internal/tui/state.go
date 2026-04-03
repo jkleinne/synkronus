@@ -24,6 +24,7 @@ const (
 	OverlayDeleteConfirm                    // Typed delete confirmation
 	OverlayConfigAdd                        // Add new config key-value
 	OverlayConfigDelete                     // Delete config key confirmation
+	OverlayDownloadPath                     // Download directory input
 )
 
 // Tab identifies the active top-level tab.
@@ -50,7 +51,7 @@ func (t Tab) Prev() Tab {
 // for text entry (suppressing single-key bindings).
 func (o OverlayState) hasTextInput() bool {
 	switch o {
-	case OverlayCreateBucket, OverlayDeleteConfirm, OverlayConfigAdd:
+	case OverlayCreateBucket, OverlayDeleteConfirm, OverlayConfigAdd, OverlayDownloadPath:
 		return true
 	default:
 		return false
