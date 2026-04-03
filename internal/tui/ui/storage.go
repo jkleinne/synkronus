@@ -237,14 +237,13 @@ func buildObjectMetadataSection(obj storage.Object) (KeyValueSection, bool) {
 type CreateBucketFormFields struct {
 	Name                   string
 	Provider               string
-	ProviderIsSelector     bool     // true when providers are available for cycling
-	AvailableProviders     []string // configured provider names for display
 	Location               string
 	StorageClass           string
 	Labels                 string
 	Versioning             string
 	UniformAccess          string
 	PublicAccessPrevention string
+	SelectorFields         map[int]bool // field indices that use left/right cycling instead of free text
 }
 
 // RenderCreateBucketForm renders the create bucket form fields.
@@ -255,32 +254,29 @@ func RenderCreateBucketForm(fields CreateBucketFormFields, activeField int, text
 		value string
 		hint  string
 	}
-	providerHint := ""
-	if len(fields.AvailableProviders) > 0 {
-		providerHint = "(◀/▶ to select)"
-	}
-
 	entries := []entry{
 		{"Name", fields.Name, ""},
-		{"Provider", fields.Provider, providerHint},
+		{"Provider", fields.Provider, "(◀/▶ to select)"},
 		{"Location", fields.Location, ""},
-		{"Storage Class", fields.StorageClass, "(STANDARD, NEARLINE, COLDLINE, ARCHIVE)"},
+		{"Storage Class", fields.StorageClass, "(◀/▶ to select)"},
 		{"Labels", fields.Labels, "(key=value,key=value)"},
-		{"Versioning", fields.Versioning, "(yes/no)"},
-		{"Uniform Access", fields.UniformAccess, "(yes/no)"},
-		{"Public Access Prevention", fields.PublicAccessPrevention, "(enforced/inherited)"},
+		{"Versioning", fields.Versioning, "(◀/▶ to select)"},
+		{"Uniform Access", fields.UniformAccess, "(◀/▶ to select)"},
+		{"Public Access Prevention", fields.PublicAccessPrevention, "(◀/▶ to select)"},
 	}
 
 	var lines []string
 	for i, e := range entries {
 		if i == activeField {
-			// Provider field uses a selector instead of free text input.
-			if i == 1 && fields.ProviderIsSelector {
-				labelStr := SectionHeaderStyle.Render(e.label + ":")
-				selector := SectionHeaderStyle.Render("◀ " + fields.Provider + " ▶")
+			labelStr := SectionHeaderStyle.Render(e.label + ":")
+			if fields.SelectorFields[i] {
+				display := e.value
+				if display == "" {
+					display = "(unset)"
+				}
+				selector := SectionHeaderStyle.Render("◀ " + display + " ▶")
 				lines = append(lines, labelStr+" "+selector)
 			} else {
-				labelStr := SectionHeaderStyle.Render(e.label + ":")
 				lines = append(lines, labelStr+" "+textInputView)
 			}
 		} else {

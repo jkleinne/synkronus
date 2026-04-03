@@ -363,18 +363,23 @@ func (m *Model) renderOverlay() string {
 		return ui.RenderModal("Help", content, m.width, m.height)
 
 	case OverlayCreateBucket:
+		selectorFields := make(map[int]bool)
+		for i := 0; i < createFormFieldCount; i++ {
+			if m.getCreateFieldOptions(i) != nil {
+				selectorFields[i] = true
+			}
+		}
 		content := ui.RenderCreateBucketForm(
 			ui.CreateBucketFormFields{
 				Name:                   m.storage.createName,
 				Provider:               m.storage.createProvider,
-				ProviderIsSelector:     len(m.storage.availableProviders) > 0,
-				AvailableProviders:     m.storage.availableProviders,
 				Location:               m.storage.createLocation,
 				StorageClass:           m.storage.createStorageClass,
 				Labels:                 m.storage.createLabels,
 				Versioning:             m.storage.createVersioning,
 				UniformAccess:          m.storage.createUniformAccess,
 				PublicAccessPrevention: m.storage.createPublicAccessPrevention,
+				SelectorFields:         selectorFields,
 			},
 			m.storage.createField,
 			m.textInput.View(),

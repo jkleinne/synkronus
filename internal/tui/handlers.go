@@ -25,6 +25,15 @@ const (
 // createFormFieldCount is the number of fields in the create-bucket overlay.
 const createFormFieldCount = 8
 
+// Static options for selector fields in the create-bucket form.
+// Empty string at index 0 represents "unset" (use provider default).
+var (
+	storageClassOptions           = []string{"", "STANDARD", "NEARLINE", "COLDLINE", "ARCHIVE"}
+	versioningOptions             = []string{"", "yes", "no"}
+	uniformAccessOptions          = []string{"", "yes", "no"}
+	publicAccessPreventionOptions = []string{"", "enforced", "inherited"}
+)
+
 // --- Overlay key handling ---
 
 // handleOverlayKeys intercepts keystrokes when a modal overlay is active.
@@ -63,11 +72,14 @@ func (m *Model) handleOverlayKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			}
 			return m, nil
 		default:
-			// Provider field (1): cycle with left/right instead of free text.
-			if m.overlay == OverlayCreateBucket && m.storage.createField == 1 && len(m.storage.availableProviders) > 0 {
-				m.storage.createProvider = m.cycleProvider(key)
-				m.textInput.SetValue(m.storage.createProvider)
-				return m, nil
+			// Selector fields cycle with left/right instead of free text.
+			if m.overlay == OverlayCreateBucket {
+				if options := m.getCreateFieldOptions(m.storage.createField); len(options) > 0 {
+					value := cycleOption(options, m.getCreateFieldValue(m.storage.createField), key)
+					m.setCreateFieldValue(m.storage.createField, value)
+					m.textInput.SetValue(value)
+					return m, nil
+				}
 			}
 			// Forward all other keys to the textinput bubble.
 			var cmd tea.Cmd
@@ -169,26 +181,9 @@ func (m *Model) handleOverlaySubmit() (tea.Model, tea.Cmd) {
 func (m *Model) syncTextInputToField() {
 	switch m.overlay {
 	case OverlayCreateBucket:
-		switch m.storage.createField {
-		case 0:
-			m.storage.createName = m.textInput.Value()
-		case 1:
-			// Provider is a selector field — only sync from textinput if no providers are available (fallback).
-			if len(m.storage.availableProviders) == 0 {
-				m.storage.createProvider = m.textInput.Value()
-			}
-		case 2:
-			m.storage.createLocation = m.textInput.Value()
-		case 3:
-			m.storage.createStorageClass = m.textInput.Value()
-		case 4:
-			m.storage.createLabels = m.textInput.Value()
-		case 5:
-			m.storage.createVersioning = m.textInput.Value()
-		case 6:
-			m.storage.createUniformAccess = m.textInput.Value()
-		case 7:
-			m.storage.createPublicAccessPrevention = m.textInput.Value()
+		// Selector fields manage their own state — only sync free-text fields from textinput.
+		if m.getCreateFieldOptions(m.storage.createField) == nil {
+			m.setCreateFieldValue(m.storage.createField, m.textInput.Value())
 		}
 	case OverlayDeleteConfirm:
 		m.storage.deleteInput = m.textInput.Value()
@@ -203,46 +198,91 @@ func (m *Model) syncTextInputToField() {
 
 // loadFieldIntoTextInput sets the textinput value to the current create-bucket field.
 func (m *Model) loadFieldIntoTextInput() {
-	switch m.storage.createField {
-	case 0:
-		m.textInput.SetValue(m.storage.createName)
-	case 1:
-		m.textInput.SetValue(m.storage.createProvider)
-	case 2:
-		m.textInput.SetValue(m.storage.createLocation)
-	case 3:
-		m.textInput.SetValue(m.storage.createStorageClass)
-	case 4:
-		m.textInput.SetValue(m.storage.createLabels)
-	case 5:
-		m.textInput.SetValue(m.storage.createVersioning)
-	case 6:
-		m.textInput.SetValue(m.storage.createUniformAccess)
-	case 7:
-		m.textInput.SetValue(m.storage.createPublicAccessPrevention)
-	}
+	m.textInput.SetValue(m.getCreateFieldValue(m.storage.createField))
 	m.textInput.Focus()
 }
 
-// cycleProvider advances or retreats the provider selection based on the key.
-// Left/right cycle through available providers; other keys are ignored.
-func (m *Model) cycleProvider(key string) string {
-	providers := m.storage.availableProviders
-	current := m.storage.createProvider
+// getCreateFieldOptions returns the valid options for a selector field, or nil for free-text fields.
+func (m *Model) getCreateFieldOptions(field int) []string {
+	switch field {
+	case 1:
+		return m.storage.availableProviders
+	case 3:
+		return storageClassOptions
+	case 5:
+		return versioningOptions
+	case 6:
+		return uniformAccessOptions
+	case 7:
+		return publicAccessPreventionOptions
+	default:
+		return nil
+	}
+}
+
+// getCreateFieldValue returns the current value of a create-bucket form field.
+func (m *Model) getCreateFieldValue(field int) string {
+	switch field {
+	case 0:
+		return m.storage.createName
+	case 1:
+		return m.storage.createProvider
+	case 2:
+		return m.storage.createLocation
+	case 3:
+		return m.storage.createStorageClass
+	case 4:
+		return m.storage.createLabels
+	case 5:
+		return m.storage.createVersioning
+	case 6:
+		return m.storage.createUniformAccess
+	case 7:
+		return m.storage.createPublicAccessPrevention
+	default:
+		return ""
+	}
+}
+
+// setCreateFieldValue sets the value of a create-bucket form field.
+func (m *Model) setCreateFieldValue(field int, value string) {
+	switch field {
+	case 0:
+		m.storage.createName = value
+	case 1:
+		m.storage.createProvider = value
+	case 2:
+		m.storage.createLocation = value
+	case 3:
+		m.storage.createStorageClass = value
+	case 4:
+		m.storage.createLabels = value
+	case 5:
+		m.storage.createVersioning = value
+	case 6:
+		m.storage.createUniformAccess = value
+	case 7:
+		m.storage.createPublicAccessPrevention = value
+	}
+}
+
+// cycleOption advances or retreats through a list of options based on key direction.
+// Left/right cycle; other keys are ignored and the current value is returned.
+func cycleOption(options []string, current, key string) string {
 	idx := 0
-	for i, p := range providers {
-		if p == current {
+	for i, o := range options {
+		if o == current {
 			idx = i
 			break
 		}
 	}
 	switch key {
 	case keyLeft:
-		idx = (idx - 1 + len(providers)) % len(providers)
+		idx = (idx - 1 + len(options)) % len(options)
 	case keyRight:
-		idx = (idx + 1) % len(providers)
+		idx = (idx + 1) % len(options)
 	}
-	return providers[idx]
+	return options[idx]
 }
 
 // parseLabels parses a "key=value,key=value" string into a map.

@@ -233,36 +233,59 @@ func TestHandleOverlayKeys_TabCyclesCreateFields(t *testing.T) {
 	}
 }
 
-func TestCycleProvider(t *testing.T) {
+func TestCycleOption(t *testing.T) {
+	options := []string{"", "STANDARD", "NEARLINE", "COLDLINE"}
+
+	// Right cycles forward
+	if got := cycleOption(options, "", "right"); got != "STANDARD" {
+		t.Errorf("cycleOption(right) from empty = %q, want STANDARD", got)
+	}
+	if got := cycleOption(options, "STANDARD", "right"); got != "NEARLINE" {
+		t.Errorf("cycleOption(right) from STANDARD = %q, want NEARLINE", got)
+	}
+
+	// Right wraps: COLDLINE -> ""
+	if got := cycleOption(options, "COLDLINE", "right"); got != "" {
+		t.Errorf("cycleOption(right) from COLDLINE = %q, want empty (wrap)", got)
+	}
+
+	// Left cycles backward: "" -> COLDLINE (wraps)
+	if got := cycleOption(options, "", "left"); got != "COLDLINE" {
+		t.Errorf("cycleOption(left) from empty = %q, want COLDLINE (wrap)", got)
+	}
+
+	// Unknown key returns current value unchanged
+	if got := cycleOption(options, "STANDARD", "x"); got != "STANDARD" {
+		t.Errorf("cycleOption(x) = %q, want STANDARD (unchanged)", got)
+	}
+}
+
+func TestGetCreateFieldOptions(t *testing.T) {
 	m := newTestModel()
-	m.storage.availableProviders = []string{"aws", "gcp"}
-	m.storage.createProvider = "aws"
+	m.storage.availableProviders = []string{"gcp", "aws"}
 
-	// Right cycles forward: aws -> gcp
-	result := m.cycleProvider("right")
-	if result != "gcp" {
-		t.Errorf("cycleProvider(right) from aws = %q, want gcp", result)
+	// Provider (1) returns dynamic options
+	if opts := m.getCreateFieldOptions(1); len(opts) != 2 || opts[0] != "gcp" {
+		t.Errorf("field 1 options = %v, want [gcp aws]", opts)
 	}
 
-	// Update state and cycle again: gcp -> aws (wraps)
-	m.storage.createProvider = "gcp"
-	result = m.cycleProvider("right")
-	if result != "aws" {
-		t.Errorf("cycleProvider(right) from gcp = %q, want aws (wrap)", result)
+	// Storage Class (3) returns static options
+	if opts := m.getCreateFieldOptions(3); len(opts) != 5 || opts[1] != "STANDARD" {
+		t.Errorf("field 3 options = %v, want 5 items starting with empty+STANDARD", opts)
 	}
 
-	// Left cycles backward: aws -> gcp (wraps)
-	m.storage.createProvider = "aws"
-	result = m.cycleProvider("left")
-	if result != "gcp" {
-		t.Errorf("cycleProvider(left) from aws = %q, want gcp (wrap)", result)
+	// Free-text fields (0, 2, 4) return nil
+	for _, field := range []int{0, 2, 4} {
+		if opts := m.getCreateFieldOptions(field); opts != nil {
+			t.Errorf("field %d should be free-text (nil options), got %v", field, opts)
+		}
 	}
 
-	// Unknown key returns current provider unchanged
-	m.storage.createProvider = "aws"
-	result = m.cycleProvider("x")
-	if result != "aws" {
-		t.Errorf("cycleProvider(x) = %q, want aws (unchanged)", result)
+	// Selector fields (5, 6, 7) return options
+	for _, field := range []int{5, 6, 7} {
+		if opts := m.getCreateFieldOptions(field); opts == nil {
+			t.Errorf("field %d should be a selector, got nil options", field)
+		}
 	}
 }
 
