@@ -638,3 +638,44 @@ func TestBucketDetailView_IAMMixedConditions(t *testing.T) {
 		t.Errorf("unconditional binding should not have condition annotation, got:\n%s", result)
 	}
 }
+
+func TestBucketDetailView_IAMDuplicateRoleConditions(t *testing.T) {
+	bucket := storage.Bucket{
+		Name:         "dup-role-bucket",
+		Provider:     domain.GCP,
+		Location:     "US",
+		StorageClass: "STANDARD",
+		CreatedAt:    time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
+		UpdatedAt:    time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
+		IAMPolicy: &storage.IAMPolicy{
+			Bindings: []storage.IAMBinding{
+				{
+					Role:       "roles/storage.objectViewer",
+					Principals: []string{"user:a@example.com"},
+					Condition: &storage.IAMCondition{
+						Title:      "Business hours",
+						Expression: "request.time.getHours('America/Chicago') >= 9",
+					},
+				},
+				{
+					Role:       "roles/storage.objectViewer",
+					Principals: []string{"user:b@example.com"},
+					Condition: &storage.IAMCondition{
+						Title:      "Weekend only",
+						Expression: "request.time.getDayOfWeek() >= 6",
+					},
+				},
+			},
+		},
+	}
+	view := BucketDetailView{bucket}
+	result := view.RenderTable()
+
+	// Both condition annotations should include the first principal for disambiguation
+	if !strings.Contains(result, "user:a@example.com) — Business hours") {
+		t.Errorf("expected first principal in condition annotation, got:\n%s", result)
+	}
+	if !strings.Contains(result, "user:b@example.com) — Weekend only") {
+		t.Errorf("expected second principal in condition annotation, got:\n%s", result)
+	}
+}

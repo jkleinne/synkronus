@@ -176,7 +176,17 @@ func (g *GCPStorage) getIAMPolicy(ctx context.Context, bucketHandle *gcpstorage.
 	}
 
 	slices.SortFunc(bindings, func(a, b storage.IAMBinding) int {
-		return strings.Compare(a.Role, b.Role)
+		if cmp := strings.Compare(a.Role, b.Role); cmp != 0 {
+			return cmp
+		}
+		titleA, titleB := "", ""
+		if a.Condition != nil {
+			titleA = a.Condition.Title
+		}
+		if b.Condition != nil {
+			titleB = b.Condition.Title
+		}
+		return strings.Compare(titleA, titleB)
 	})
 
 	return &storage.IAMPolicy{

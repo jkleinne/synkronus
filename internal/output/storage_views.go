@@ -190,7 +190,11 @@ func (v BucketDetailView) renderIAMPolicy() string {
 					sb.WriteString("Conditions:\n")
 					hasConditions = true
 				}
-				sb.WriteString(fmt.Sprintf("  %s — %s\n", binding.Role, binding.Condition.Title))
+				firstPrincipal := ""
+				if len(binding.Principals) > 0 {
+					firstPrincipal = fmt.Sprintf(" (%s)", binding.Principals[0])
+				}
+				sb.WriteString(fmt.Sprintf("  %s%s — %s\n", binding.Role, firstPrincipal, binding.Condition.Title))
 				if binding.Condition.Description != "" {
 					sb.WriteString(fmt.Sprintf("    %s\n", binding.Condition.Description))
 				}
