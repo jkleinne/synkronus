@@ -17,7 +17,7 @@ func newDownloadObjectCmd() *cobra.Command {
 	var outputPath string
 
 	cmd := &cobra.Command{
-		Use:   "download-object [object-key]",
+		Use:   "download [object-key]",
 		Short: "Download a storage object to a local file or stdout",
 		Long:  `Downloads an object from a storage bucket. If --output-path is specified, writes to that file or directory. Otherwise, streams the object content to stdout for piping.`,
 		Args:  cobra.ExactArgs(1),

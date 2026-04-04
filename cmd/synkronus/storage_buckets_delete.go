@@ -13,9 +13,8 @@ func newDeleteBucketCmd() *cobra.Command {
 	var force bool
 
 	cmd := &cobra.Command{
-		Use:     "delete-bucket [bucket-name]",
-		Aliases: []string{"delete"},
-		Short:   "Delete a storage bucket",
+		Use:   "delete [bucket-name]",
+		Short: "Delete a storage bucket",
 		Long: `Deletes a storage bucket on the specified provider. This operation is destructive.
 Confirmation is required by typing the bucket name, unless the --force flag is used.`,
 		Args: cobra.ExactArgs(1),

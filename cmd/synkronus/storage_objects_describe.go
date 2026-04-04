@@ -14,7 +14,7 @@ func newDescribeObjectCmd() *cobra.Command {
 	var bucket string
 
 	cmd := &cobra.Command{
-		Use:   "describe-object [object-key]",
+		Use:   "describe [object-key]",
 		Short: "Describe a specific storage object",
 		Long:  `Provides detailed metadata about a specific object within a bucket. Requires the object key as an argument, and the --bucket and --provider flags.`,
 		Args:  cobra.ExactArgs(1),

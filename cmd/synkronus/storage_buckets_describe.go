@@ -13,9 +13,8 @@ func newDescribeBucketCmd() *cobra.Command {
 	var provider string
 
 	cmd := &cobra.Command{
-		Use:     "describe-bucket [bucket-name]",
-		Aliases: []string{"describe"},
-		Short:   "Describe a specific storage bucket",
+		Use:   "describe [bucket-name]",
+		Short: "Describe a specific storage bucket",
 		Long:    `Provides detailed information about a specific storage bucket. You must specify the bucket name and the --provider flag.`,
 		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {

@@ -15,7 +15,7 @@ func newListObjectsCmd() *cobra.Command {
 	var prefix string
 
 	cmd := &cobra.Command{
-		Use:   "list-objects",
+		Use:   "list",
 		Short: "List objects within a storage bucket",
 		Long: `Lists objects (files) and common prefixes (directories) within a specified bucket.
 Requires the --bucket and --provider flags. Use --prefix to filter the results (e.g., list contents of a specific directory).`,

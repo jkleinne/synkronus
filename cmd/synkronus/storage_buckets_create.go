@@ -19,9 +19,8 @@ func newCreateBucketCmd() *cobra.Command {
 	var publicAccessPrevention string
 
 	cmd := &cobra.Command{
-		Use:     "create-bucket [bucket-name]",
-		Aliases: []string{"create"},
-		Short:   "Create a new storage bucket",
+		Use:   "create [bucket-name]",
+		Short: "Create a new storage bucket",
 		Long:    `Creates a new storage bucket on the specified provider. You must specify the bucket name, the --provider flag, and the --location flag. Optional flags control storage class, labels, versioning, uniform access, and public access prevention.`,
 		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
