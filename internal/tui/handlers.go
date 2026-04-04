@@ -3,6 +3,7 @@ package tui
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -52,7 +53,7 @@ func (m *Model) handleOverlayKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		case keyEnter:
 			return m.handleOverlaySubmit()
 		case keyTab:
-			// Tab cycles fields in multi-field overlays (CreateBucket, ConfigAdd).
+			// Tab cycles fields in multi-field overlays (CreateBucket, ConfigAdd, UploadObject).
 			m.syncTextInputToField()
 			switch m.overlay {
 			case OverlayCreateBucket:
@@ -68,6 +69,17 @@ func (m *Model) handleOverlayKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 					m.config.editValue = m.textInput.Value()
 					m.storage.createField = 0
 					m.textInput.SetValue(m.config.editKey)
+				}
+				m.textInput.Focus()
+			case OverlayUploadObject:
+				if m.storage.uploadField == 0 {
+					m.storage.uploadFilePath = m.textInput.Value()
+					m.storage.uploadField = 1
+					m.textInput.SetValue(m.storage.uploadObjectKey)
+				} else {
+					m.storage.uploadObjectKey = m.textInput.Value()
+					m.storage.uploadField = 0
+					m.textInput.SetValue(m.storage.uploadFilePath)
 				}
 				m.textInput.Focus()
 			}
@@ -155,17 +167,33 @@ func (m *Model) handleOverlaySubmit() (tea.Model, tea.Cmd) {
 		return m, createBucketCmd(m.storageService, opts, provider)
 
 	case OverlayDeleteConfirm:
-		if m.textInput.Value() != m.storage.selectedBucket.Name {
-			return m, nil
+		switch m.storage.deleteKind {
+		case deleteTargetBucket:
+			if m.textInput.Value() != m.storage.selectedBucket.Name {
+				return m, nil
+			}
+			m.overlay = OverlayNone
+			m.storage.loading = true
+			m.textInput.Reset()
+			return m, deleteBucketCmd(
+				m.storageService,
+				m.storage.selectedBucket.Name,
+				strings.ToLower(string(m.storage.selectedBucket.Provider)),
+			)
+		case deleteTargetObject:
+			if m.textInput.Value() != m.storage.deleteObjectKey {
+				return m, nil
+			}
+			m.overlay = OverlayNone
+			m.storage.loading = true
+			m.textInput.Reset()
+			return m, deleteObjectCmd(
+				m.storageService,
+				m.storage.selectedBucket.Name,
+				m.storage.deleteObjectKey,
+				strings.ToLower(string(m.storage.selectedBucket.Provider)),
+			)
 		}
-		m.overlay = OverlayNone
-		m.storage.loading = true
-		m.textInput.Reset()
-		return m, deleteBucketCmd(
-			m.storageService,
-			m.storage.selectedBucket.Name,
-			strings.ToLower(string(m.storage.selectedBucket.Provider)),
-		)
 
 	case OverlayConfigAdd:
 		key := strings.TrimSpace(m.config.editKey)
@@ -194,6 +222,29 @@ func (m *Model) handleOverlaySubmit() (tea.Model, tea.Cmd) {
 			strings.ToLower(string(m.storage.selectedBucket.Provider)),
 			dir,
 		)
+
+	case OverlayUploadObject:
+		filePath := strings.TrimSpace(m.storage.uploadFilePath)
+		if filePath == "" {
+			return m, nil
+		}
+		objectKey := strings.TrimSpace(m.storage.uploadObjectKey)
+		m.overlay = OverlayNone
+		m.storage.loading = true
+		m.err = nil
+		m.textInput.Reset()
+		if objectKey != "" {
+			m.storage.uploadObjectKey = objectKey
+		} else {
+			m.storage.uploadObjectKey = filepath.Base(filePath)
+		}
+		return m, uploadObjectCmd(
+			m.storageService,
+			m.storage.selectedBucket.Name,
+			strings.ToLower(string(m.storage.selectedBucket.Provider)),
+			filePath,
+			objectKey,
+		)
 	}
 
 	return m, nil
@@ -217,6 +268,12 @@ func (m *Model) syncTextInputToField() {
 		}
 	case OverlayDownloadPath:
 		m.storage.downloadDir = m.textInput.Value()
+	case OverlayUploadObject:
+		if m.storage.uploadField == 0 {
+			m.storage.uploadFilePath = m.textInput.Value()
+		} else {
+			m.storage.uploadObjectKey = m.textInput.Value()
+		}
 	}
 }
 
@@ -453,6 +510,7 @@ func (m *Model) handleStorageListKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "d":
 		if len(m.storage.buckets) > 0 {
 			m.storage.selectedBucket = m.storage.buckets[m.storage.cursor]
+			m.storage.deleteKind = deleteTargetBucket
 			m.storage.deleteInput = ""
 			m.textInput.SetValue("")
 			m.textInput.Focus()
@@ -491,6 +549,7 @@ func (m *Model) handleBucketDetailKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			"",
 		)
 	case "d":
+		m.storage.deleteKind = deleteTargetBucket
 		m.storage.deleteInput = ""
 		m.textInput.SetValue("")
 		m.textInput.Focus()
@@ -567,6 +626,29 @@ func (m *Model) handleObjectListKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				}
 			}
 		}
+	case "u":
+		m.storage.uploadFilePath = ""
+		m.storage.uploadObjectKey = ""
+		m.storage.uploadField = 0
+		m.textInput.SetValue("")
+		m.textInput.Focus()
+		m.overlay = OverlayUploadObject
+	case "d":
+		if totalItems > 0 {
+			prefixCount := len(m.storage.objects.CommonPrefixes)
+			if m.storage.cursor >= prefixCount {
+				objIdx := m.storage.cursor - prefixCount
+				if objIdx < len(m.storage.objects.Objects) {
+					obj := m.storage.objects.Objects[objIdx]
+					m.storage.deleteObjectKey = obj.Key
+					m.storage.deleteKind = deleteTargetObject
+					m.storage.deleteInput = ""
+					m.textInput.SetValue("")
+					m.textInput.Focus()
+					m.overlay = OverlayDeleteConfirm
+				}
+			}
+		}
 	case keyEsc:
 		m.viewState = ViewStorageBucketDetail
 		m.storage.cursor = 0
@@ -590,6 +672,13 @@ func (m *Model) handleObjectDetailKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.textInput.SetValue("./")
 		m.textInput.Focus()
 		m.overlay = OverlayDownloadPath
+	case "d":
+		m.storage.deleteObjectKey = m.storage.selectedObject.Key
+		m.storage.deleteKind = deleteTargetObject
+		m.storage.deleteInput = ""
+		m.textInput.SetValue("")
+		m.textInput.Focus()
+		m.overlay = OverlayDeleteConfirm
 	case "j", keyDown:
 		m.storage.scrollOffset++
 	case "k", keyUp:
@@ -834,6 +923,39 @@ func (m *Model) handleObjectDownloaded(msg ObjectDownloadedMsg) (tea.Model, tea.
 	}
 	m.statusMessage = fmt.Sprintf("Downloaded to %s", msg.FilePath)
 	return m, clearStatusCmd()
+}
+
+func (m *Model) handleObjectUploaded(msg ObjectUploadedMsg) (tea.Model, tea.Cmd) {
+	m.storage.loading = false
+	if msg.Err != nil {
+		m.err = msg.Err
+		return m, nil
+	}
+	m.statusMessage = fmt.Sprintf("Uploaded %s", m.storage.uploadObjectKey)
+	m.storage.loading = true
+	return m, tea.Batch(
+		fetchObjectsCmd(m.storageService, m.storage.selectedBucket.Name,
+			strings.ToLower(string(m.storage.selectedBucket.Provider)),
+			m.storage.objects.Prefix),
+		clearStatusCmd(),
+	)
+}
+
+func (m *Model) handleObjectDeleted(msg ObjectDeletedMsg) (tea.Model, tea.Cmd) {
+	m.storage.loading = false
+	if msg.Err != nil {
+		m.err = msg.Err
+		return m, nil
+	}
+	m.statusMessage = fmt.Sprintf("Object '%s' deleted", m.storage.deleteObjectKey)
+	m.viewState = ViewStorageObjectList
+	m.storage.loading = true
+	return m, tea.Batch(
+		fetchObjectsCmd(m.storageService, m.storage.selectedBucket.Name,
+			strings.ToLower(string(m.storage.selectedBucket.Provider)),
+			m.storage.objects.Prefix),
+		clearStatusCmd(),
+	)
 }
 
 func (m *Model) handleInstancesLoaded(msg InstancesLoadedMsg) (tea.Model, tea.Cmd) {

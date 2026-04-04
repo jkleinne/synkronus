@@ -25,6 +25,7 @@ const (
 	OverlayConfigAdd                        // Add new config key-value
 	OverlayConfigDelete                     // Delete config key confirmation
 	OverlayDownloadPath                     // Download directory input
+	OverlayUploadObject                     // Upload object form
 )
 
 // Tab identifies the active top-level tab.
@@ -51,7 +52,7 @@ func (t Tab) Prev() Tab {
 // for text entry (suppressing single-key bindings).
 func (o OverlayState) hasTextInput() bool {
 	switch o {
-	case OverlayCreateBucket, OverlayDeleteConfirm, OverlayConfigAdd, OverlayDownloadPath:
+	case OverlayCreateBucket, OverlayDeleteConfirm, OverlayConfigAdd, OverlayDownloadPath, OverlayUploadObject:
 		return true
 	default:
 		return false
