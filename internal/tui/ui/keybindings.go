@@ -67,15 +67,18 @@ var bindings = []Binding{
 	// Object list
 	{Key: "Enter", Description: "Describe", Context: ContextObjectList},
 	{Key: "j/k", Description: "Navigate", Context: ContextObjectList},
+	{Key: "w", Description: "Download", Context: ContextObjectList},
+	{Key: "u", Description: "Upload", Context: ContextObjectList},
+	{Key: "d", Description: "Delete", Context: ContextObjectList},
 	{Key: "Esc", Description: "Back", Context: ContextObjectList},
 	{Key: "q", Description: "Quit", Context: ContextObjectList},
-	{Key: "w", Description: "Download", Context: ContextObjectList},
 
 	// Object detail
 	{Key: "j/k", Description: "Scroll", Context: ContextObjectDetail},
+	{Key: "w", Description: "Download", Context: ContextObjectDetail},
+	{Key: "d", Description: "Delete", Context: ContextObjectDetail},
 	{Key: "Esc", Description: "Back", Context: ContextObjectDetail},
 	{Key: "q", Description: "Quit", Context: ContextObjectDetail},
-	{Key: "w", Description: "Download", Context: ContextObjectDetail},
 
 	// Instance detail
 	{Key: "j/k", Description: "Scroll", Context: ContextInstanceDetail},

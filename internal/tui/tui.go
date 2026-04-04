@@ -63,6 +63,14 @@ type Model struct {
 	statusMessage string
 }
 
+// deleteTarget distinguishes which resource type a delete confirmation modal targets.
+type deleteTarget int
+
+const (
+	deleteTargetBucket deleteTarget = iota
+	deleteTargetObject
+)
+
 // storageState holds the mutable state for the Storage tab.
 type storageState struct {
 	buckets        []storage.Bucket
@@ -87,6 +95,11 @@ type storageState struct {
 	deleteInput                  string
 	downloadingKey               string // non-empty when a download is in progress, for spinner text
 	downloadDir                  string // directory path entered in the download overlay
+	uploadFilePath               string // file path entered in upload overlay
+	uploadObjectKey              string // optional custom key entered in upload overlay
+	uploadField                  int    // 0 = file path, 1 = object key
+	deleteKind                   deleteTarget
+	deleteObjectKey              string
 }
 
 // sqlState holds the mutable state for the SQL tab.
@@ -182,6 +195,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.handleBucketDeleted(msg)
 	case ObjectDownloadedMsg:
 		return m.handleObjectDownloaded(msg)
+	case ObjectUploadedMsg:
+		return m.handleObjectUploaded(msg)
+	case ObjectDeletedMsg:
+		return m.handleObjectDeleted(msg)
 	case ConfigUpdatedMsg:
 		return m.handleConfigUpdated(msg)
 	case ConfigDeletedMsg:
@@ -401,12 +418,17 @@ func (m *Model) renderOverlay() string {
 		return ui.RenderModal("Create Bucket", content, m.width, m.height)
 
 	case OverlayDeleteConfirm:
-		content := ui.RenderDeleteConfirm(
-			m.storage.selectedBucket.Name,
-			m.storage.deleteInput,
-			m.textInput.View(),
-		)
-		return ui.RenderModal("Delete Bucket", content, m.width, m.height)
+		var title, targetName string
+		switch m.storage.deleteKind {
+		case deleteTargetBucket:
+			title = "Delete Bucket"
+			targetName = m.storage.selectedBucket.Name
+		case deleteTargetObject:
+			title = "Delete Object"
+			targetName = m.storage.deleteObjectKey
+		}
+		content := ui.RenderDeleteConfirm(targetName, m.storage.deleteInput, m.textInput.View())
+		return ui.RenderModal(title, content, m.width, m.height)
 
 	case OverlayConfigAdd:
 		content := fmt.Sprintf(
@@ -441,6 +463,20 @@ func (m *Model) renderOverlay() string {
 			m.textInput.View(),
 		)
 		return ui.RenderModal("Download Object", content, m.width, m.height)
+
+	case OverlayUploadObject:
+		fieldLabels := []string{"File path:", "Object key (optional):"}
+		values := []string{m.storage.uploadFilePath, m.storage.uploadObjectKey}
+		var lines []string
+		for i, label := range fieldLabels {
+			if i == m.storage.uploadField {
+				lines = append(lines, fmt.Sprintf("%s %s", ui.TextDimStyle.Render(label), m.textInput.View()))
+			} else {
+				lines = append(lines, fmt.Sprintf("%s %s", ui.TextDimStyle.Render(label), ui.TextSecondaryStyle.Render(values[i])))
+			}
+		}
+		content := strings.Join(lines, "\n")
+		return ui.RenderModal("Upload Object", content, m.width, m.height)
 
 	default:
 		return ""

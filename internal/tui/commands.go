@@ -83,6 +83,12 @@ type ConfigUpdatedMsg struct{ Err error }
 type ConfigDeletedMsg struct{ Err error }
 type ProviderRemovedMsg struct{ Err error }
 
+// ObjectUploadedMsg is sent when an object upload operation completes.
+type ObjectUploadedMsg struct{ Err error }
+
+// ObjectDeletedMsg is sent when an object deletion operation completes.
+type ObjectDeletedMsg struct{ Err error }
+
 // StatusClearMsg is sent after a timer to clear transient status messages.
 type StatusClearMsg struct{}
 
@@ -220,6 +226,56 @@ func downloadObjectCmd(svc *service.StorageService, bucketName, objectKey, provi
 		}
 
 		return ObjectDownloadedMsg{FilePath: destPath}
+	}
+}
+
+// uploadObjectCmd uploads a local file as a storage object.
+// If objectKey is empty, the basename of filePath is used.
+func uploadObjectCmd(svc *service.StorageService, bucketName, provider, filePath, objectKey string) tea.Cmd {
+	return func() tea.Msg {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+		defer cancel()
+
+		expandedPath, err := expandTilde(filePath)
+		if err != nil {
+			return ObjectUploadedMsg{Err: err}
+		}
+
+		info, err := os.Stat(expandedPath)
+		if err != nil {
+			return ObjectUploadedMsg{Err: fmt.Errorf("file not found: %s", expandedPath)}
+		}
+		if info.IsDir() {
+			return ObjectUploadedMsg{Err: fmt.Errorf("path is a directory, not a file: %s", expandedPath)}
+		}
+
+		if objectKey == "" {
+			objectKey = filepath.Base(expandedPath)
+		}
+
+		f, err := os.Open(expandedPath)
+		if err != nil {
+			return ObjectUploadedMsg{Err: fmt.Errorf("error opening file: %w", err)}
+		}
+		defer f.Close()
+
+		opts := storage.UploadObjectOptions{
+			BucketName: bucketName,
+			ObjectKey:  objectKey,
+		}
+
+		err = svc.UploadObject(ctx, opts, provider, f)
+		return ObjectUploadedMsg{Err: err}
+	}
+}
+
+// deleteObjectCmd deletes an object from a bucket.
+func deleteObjectCmd(svc *service.StorageService, bucketName, objectKey, provider string) tea.Cmd {
+	return func() tea.Msg {
+		ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+		defer cancel()
+		err := svc.DeleteObject(ctx, bucketName, objectKey, provider)
+		return ObjectDeletedMsg{Err: err}
 	}
 }
 
