@@ -15,9 +15,8 @@ func newListBucketsCmd() *cobra.Command {
 	var providersList []string
 
 	cmd := &cobra.Command{
-		Use:     "list-buckets",
-		Aliases: []string{"list"},
-		Short:   "List storage buckets",
+		Use:   "list",
+		Short: "List storage buckets",
 		Long: `Lists all storage buckets. If no flags are provided, it queries all configured providers.
 Use the --providers flag to specify which providers to query (e.g., --providers gcp,aws).`,
 		RunE: func(cmd *cobra.Command, args []string) error {
