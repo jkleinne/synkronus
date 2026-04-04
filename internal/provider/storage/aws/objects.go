@@ -4,6 +4,9 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"mime"
+	"net/url"
+	"path/filepath"
 	"synkronus/internal/domain"
 	"synkronus/internal/domain/storage"
 
@@ -115,6 +118,61 @@ func (s *AWSStorage) DownloadObject(ctx context.Context, bucketName string, obje
 	return out.Body, nil
 }
 
+func (s *AWSStorage) UploadObject(ctx context.Context, opts storage.UploadObjectOptions, reader io.Reader) error {
+	s.logger.Debug("Starting AWS UploadObject operation", "bucket", opts.BucketName, "key", opts.ObjectKey)
+
+	input := &s3.PutObjectInput{
+		Bucket: &opts.BucketName,
+		Key:    &opts.ObjectKey,
+		Body:   reader,
+	}
+
+	contentType := opts.ContentType
+	if contentType == "" {
+		contentType = detectContentType(opts.ObjectKey)
+	}
+	if contentType != "" {
+		input.ContentType = &contentType
+	}
+	if len(opts.Metadata) > 0 {
+		input.Metadata = opts.Metadata
+	}
+
+	if _, err := s.client.PutObject(ctx, input); err != nil {
+		return fmt.Errorf("uploading object %s to bucket %s: %w", opts.ObjectKey, opts.BucketName, err)
+	}
+	return nil
+}
+
+func (s *AWSStorage) DeleteObject(ctx context.Context, bucketName, objectKey string) error {
+	s.logger.Debug("Starting AWS DeleteObject operation", "bucket", bucketName, "key", objectKey)
+
+	if _, err := s.client.DeleteObject(ctx, &s3.DeleteObjectInput{
+		Bucket: &bucketName,
+		Key:    &objectKey,
+	}); err != nil {
+		return fmt.Errorf("deleting object %s from bucket %s: %w", objectKey, bucketName, err)
+	}
+	return nil
+}
+
+func (s *AWSStorage) CopyObject(ctx context.Context, srcBucket, srcKey, destBucket, destKey string) error {
+	s.logger.Debug("Starting AWS CopyObject operation",
+		"srcBucket", srcBucket, "srcKey", srcKey,
+		"destBucket", destBucket, "destKey", destKey)
+
+	copySource := srcBucket + "/" + url.PathEscape(srcKey)
+
+	if _, err := s.client.CopyObject(ctx, &s3.CopyObjectInput{
+		Bucket:     &destBucket,
+		Key:        &destKey,
+		CopySource: &copySource,
+	}); err != nil {
+		return fmt.Errorf("copying object %s/%s to %s/%s: %w", srcBucket, srcKey, destBucket, destKey, err)
+	}
+	return nil
+}
+
 // storageClassOrDefault returns "STANDARD" when S3 omits the storage class
 // (which it does for STANDARD-class objects).
 func storageClassOrDefault(sc string) string {
@@ -122,6 +180,14 @@ func storageClassOrDefault(sc string) string {
 		return "STANDARD"
 	}
 	return sc
+}
+
+func detectContentType(objectKey string) string {
+	ext := filepath.Ext(objectKey)
+	if ext == "" {
+		return ""
+	}
+	return mime.TypeByExtension(ext)
 }
 
 func derefInt64(p *int64) int64 {
