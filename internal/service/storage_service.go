@@ -149,6 +149,62 @@ func (s *StorageService) DownloadObject(ctx context.Context, bucketName, objectK
 	return &readerWithCleanup{ReadCloser: reader, cleanup: client.Close}, nil
 }
 
+func (s *StorageService) UploadObject(ctx context.Context, opts storage.UploadObjectOptions, providerName string, reader io.Reader) error {
+	s.logger.Debug("Starting UploadObject operation",
+		"bucket", opts.BucketName, "key", opts.ObjectKey, "provider", providerName)
+
+	client, err := s.getStorageClient(ctx, providerName)
+	if err != nil {
+		return err
+	}
+	defer client.Close()
+
+	if err := client.UploadObject(ctx, opts, reader); err != nil {
+		s.logger.Error("Failed to upload object",
+			"bucket", opts.BucketName, "key", opts.ObjectKey, "provider", providerName, "error", err)
+		return err
+	}
+	return nil
+}
+
+func (s *StorageService) DeleteObject(ctx context.Context, bucketName, objectKey, providerName string) error {
+	s.logger.Debug("Starting DeleteObject operation",
+		"bucket", bucketName, "key", objectKey, "provider", providerName)
+
+	client, err := s.getStorageClient(ctx, providerName)
+	if err != nil {
+		return err
+	}
+	defer client.Close()
+
+	if err := client.DeleteObject(ctx, bucketName, objectKey); err != nil {
+		s.logger.Error("Failed to delete object",
+			"bucket", bucketName, "key", objectKey, "provider", providerName, "error", err)
+		return err
+	}
+	return nil
+}
+
+func (s *StorageService) CopyObject(ctx context.Context, srcBucket, srcKey, destBucket, destKey, providerName string) error {
+	s.logger.Debug("Starting CopyObject operation",
+		"srcBucket", srcBucket, "srcKey", srcKey,
+		"destBucket", destBucket, "destKey", destKey, "provider", providerName)
+
+	client, err := s.getStorageClient(ctx, providerName)
+	if err != nil {
+		return err
+	}
+	defer client.Close()
+
+	if err := client.CopyObject(ctx, srcBucket, srcKey, destBucket, destKey); err != nil {
+		s.logger.Error("Failed to copy object",
+			"srcBucket", srcBucket, "srcKey", srcKey,
+			"destBucket", destBucket, "destKey", destKey, "provider", providerName, "error", err)
+		return err
+	}
+	return nil
+}
+
 // readerWithCleanup wraps an io.ReadCloser to run a cleanup function (e.g., client.Close)
 // when the reader is closed. This ensures the provider client outlives the reader.
 type readerWithCleanup struct {
