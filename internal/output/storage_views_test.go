@@ -533,19 +533,149 @@ func TestBucketDetailView_IAMPolicyWithConditions(t *testing.T) {
 		UpdatedAt:    time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
 		IAMPolicy: &storage.IAMPolicy{
 			Bindings: []storage.IAMBinding{
-				{Role: "roles/storage.viewer", Principals: []string{"user:a@example.com", "user:b@example.com"}},
+				{
+					Role:       "roles/storage.objectViewer",
+					Principals: []string{"user:a@example.com", "user:b@example.com"},
+					Condition: &storage.IAMCondition{
+						Title:      "Business hours only",
+						Expression: "request.time.getHours('America/Chicago') >= 9",
+					},
+				},
 			},
-			HasConditions: true,
 		},
 	}
 	view := BucketDetailView{bucket}
 	result := view.RenderTable()
 
-	if !strings.Contains(result, "conditional bindings") {
-		t.Errorf("expected conditional bindings note, got:\n%s", result)
+	if !strings.Contains(result, "Conditions:") {
+		t.Errorf("expected 'Conditions:' header, got:\n%s", result)
 	}
-	// Verify multi-principal rendering
+	if !strings.Contains(result, "Business hours only") {
+		t.Errorf("expected condition title in output, got:\n%s", result)
+	}
+	if !strings.Contains(result, "request.time.getHours") {
+		t.Errorf("expected condition expression in output, got:\n%s", result)
+	}
 	if !strings.Contains(result, "user:a@example.com") || !strings.Contains(result, "user:b@example.com") {
 		t.Errorf("expected both principals in output, got:\n%s", result)
+	}
+}
+
+func TestBucketDetailView_IAMConditionWithDescription(t *testing.T) {
+	bucket := storage.Bucket{
+		Name:         "desc-cond-bucket",
+		Provider:     domain.GCP,
+		Location:     "US",
+		StorageClass: "STANDARD",
+		CreatedAt:    time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
+		UpdatedAt:    time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
+		IAMPolicy: &storage.IAMPolicy{
+			Bindings: []storage.IAMBinding{
+				{
+					Role:       "roles/storage.admin",
+					Principals: []string{"user:admin@example.com"},
+					Condition: &storage.IAMCondition{
+						Title:       "Temporary access",
+						Description: "Granted for incident response until 2026-05-01",
+						Expression:  "request.time < timestamp('2026-05-01T00:00:00Z')",
+					},
+				},
+			},
+		},
+	}
+	view := BucketDetailView{bucket}
+	result := view.RenderTable()
+
+	if !strings.Contains(result, "Temporary access") {
+		t.Errorf("expected condition title, got:\n%s", result)
+	}
+	if !strings.Contains(result, "Granted for incident response") {
+		t.Errorf("expected condition description, got:\n%s", result)
+	}
+	if !strings.Contains(result, "request.time < timestamp") {
+		t.Errorf("expected condition expression, got:\n%s", result)
+	}
+}
+
+func TestBucketDetailView_IAMMixedConditions(t *testing.T) {
+	bucket := storage.Bucket{
+		Name:         "mixed-bucket",
+		Provider:     domain.GCP,
+		Location:     "US",
+		StorageClass: "STANDARD",
+		CreatedAt:    time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
+		UpdatedAt:    time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
+		IAMPolicy: &storage.IAMPolicy{
+			Bindings: []storage.IAMBinding{
+				{
+					Role:       "roles/storage.admin",
+					Principals: []string{"user:admin@example.com"},
+				},
+				{
+					Role:       "roles/storage.objectViewer",
+					Principals: []string{"user:viewer@example.com"},
+					Condition: &storage.IAMCondition{
+						Title:      "IP restricted",
+						Expression: "request.auth.claims.source_ip == '10.0.0.1'",
+					},
+				},
+			},
+		},
+	}
+	view := BucketDetailView{bucket}
+	result := view.RenderTable()
+
+	if !strings.Contains(result, "roles/storage.admin") {
+		t.Errorf("expected unconditional role, got:\n%s", result)
+	}
+	if !strings.Contains(result, "roles/storage.objectViewer") {
+		t.Errorf("expected conditional role, got:\n%s", result)
+	}
+	if !strings.Contains(result, "IP restricted") {
+		t.Errorf("expected condition title for objectViewer, got:\n%s", result)
+	}
+	if strings.Contains(result, "roles/storage.admin —") {
+		t.Errorf("unconditional binding should not have condition annotation, got:\n%s", result)
+	}
+}
+
+func TestBucketDetailView_IAMDuplicateRoleConditions(t *testing.T) {
+	bucket := storage.Bucket{
+		Name:         "dup-role-bucket",
+		Provider:     domain.GCP,
+		Location:     "US",
+		StorageClass: "STANDARD",
+		CreatedAt:    time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
+		UpdatedAt:    time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
+		IAMPolicy: &storage.IAMPolicy{
+			Bindings: []storage.IAMBinding{
+				{
+					Role:       "roles/storage.objectViewer",
+					Principals: []string{"user:a@example.com"},
+					Condition: &storage.IAMCondition{
+						Title:      "Business hours",
+						Expression: "request.time.getHours('America/Chicago') >= 9",
+					},
+				},
+				{
+					Role:       "roles/storage.objectViewer",
+					Principals: []string{"user:b@example.com"},
+					Condition: &storage.IAMCondition{
+						Title:      "Weekend only",
+						Expression: "request.time.getDayOfWeek() >= 6",
+					},
+				},
+			},
+		},
+	}
+	view := BucketDetailView{bucket}
+	result := view.RenderTable()
+
+	// Both condition annotations should include the first principal for disambiguation
+	if !strings.Contains(result, "user:a@example.com) — Business hours") {
+		t.Errorf("expected first principal in condition annotation, got:\n%s", result)
+	}
+	if !strings.Contains(result, "user:b@example.com) — Weekend only") {
+		t.Errorf("expected second principal in condition annotation, got:\n%s", result)
 	}
 }

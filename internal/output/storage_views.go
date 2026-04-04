@@ -158,7 +158,7 @@ func (v BucketDetailView) renderIAMPolicy() string {
 		return sb.String()
 	}
 
-	if len(v.IAMPolicy.Bindings) == 0 && len(v.IAMPolicy.Statements) == 0 && !v.IAMPolicy.HasConditions {
+	if len(v.IAMPolicy.Bindings) == 0 && len(v.IAMPolicy.Statements) == 0 {
 		sb.WriteString("  (No IAM bindings found)\n\n")
 		return sb.String()
 	}
@@ -182,8 +182,27 @@ func (v BucketDetailView) renderIAMPolicy() string {
 		sb.WriteString(iamTable.String())
 		sb.WriteString("\n")
 
-		if v.IAMPolicy.HasConditions {
-			sb.WriteString("Note: This policy contains conditional bindings which are not displayed here.\n")
+		// Render condition annotations after the table
+		hasConditions := false
+		for _, binding := range v.IAMPolicy.Bindings {
+			if binding.Condition != nil {
+				if !hasConditions {
+					sb.WriteString("Conditions:\n")
+					hasConditions = true
+				}
+				firstPrincipal := ""
+				if len(binding.Principals) > 0 {
+					firstPrincipal = fmt.Sprintf(" (%s)", binding.Principals[0])
+				}
+				sb.WriteString(fmt.Sprintf("  %s%s — %s\n", binding.Role, firstPrincipal, binding.Condition.Title))
+				if binding.Condition.Description != "" {
+					sb.WriteString(fmt.Sprintf("    %s\n", binding.Condition.Description))
+				}
+				sb.WriteString(fmt.Sprintf("    %s\n", binding.Condition.Expression))
+			}
+		}
+		if hasConditions {
+			sb.WriteString("\n")
 		}
 		sb.WriteString("\n")
 	}

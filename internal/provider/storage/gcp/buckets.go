@@ -152,38 +152,45 @@ func (g *GCPStorage) getIAMPolicy(ctx context.Context, bucketHandle *gcpstorage.
 		return nil, fmt.Errorf("failed to get V3 IAM policy: %w", err)
 	}
 
-	// Map the SDK V3 policy structure to the domain model
 	var bindings []storage.IAMBinding
-	hasConditions := false
 
 	for _, binding := range policy.Bindings {
-		// Skip bindings with conditions as they complicate the CLI view and are not yet supported in the detailed model
-		// TODO: add support for conditional bindings in the future
-		if binding.Condition != nil {
-			g.logger.Debug("Skipping conditional IAM binding", "role", binding.Role, "condition", binding.Condition.Title)
-			hasConditions = true
-			continue
-		}
-
-		// Ensure principals are sorted for deterministic output
 		principals := make([]string, len(binding.Members))
 		copy(principals, binding.Members)
 		slices.Sort(principals)
 
-		bindings = append(bindings, storage.IAMBinding{
+		b := storage.IAMBinding{
 			Role:       binding.Role,
 			Principals: principals,
-		})
+		}
+
+		if binding.Condition != nil {
+			b.Condition = &storage.IAMCondition{
+				Title:       binding.Condition.Title,
+				Description: binding.Condition.Description,
+				Expression:  binding.Condition.Expression,
+			}
+		}
+
+		bindings = append(bindings, b)
 	}
 
-	// Sort bindings by role name for deterministic output
 	slices.SortFunc(bindings, func(a, b storage.IAMBinding) int {
-		return strings.Compare(a.Role, b.Role)
+		if cmp := strings.Compare(a.Role, b.Role); cmp != 0 {
+			return cmp
+		}
+		titleA, titleB := "", ""
+		if a.Condition != nil {
+			titleA = a.Condition.Title
+		}
+		if b.Condition != nil {
+			titleB = b.Condition.Title
+		}
+		return strings.Compare(titleA, titleB)
 	})
 
 	return &storage.IAMPolicy{
-		Bindings:      bindings,
-		HasConditions: hasConditions,
+		Bindings: bindings,
 	}, nil
 }
 
