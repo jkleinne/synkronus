@@ -191,3 +191,12 @@ type CreateBucketOptions struct {
 	UniformBucketLevelAccess *bool
 	PublicAccessPrevention   *string // "enforced", "inherited", or nil (provider default)
 }
+
+// UploadObjectOptions contains the parameters for uploading an object to a storage bucket.
+// ContentType is optional — providers auto-detect from the object key extension if empty.
+type UploadObjectOptions struct {
+	BucketName  string
+	ObjectKey   string
+	ContentType string            // optional — auto-detected from key extension if empty
+	Metadata    map[string]string // optional user-defined metadata
+}
