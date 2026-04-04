@@ -109,8 +109,6 @@ type RetentionPolicy struct {
 type IAMPolicy struct {
 	// GCP: associates a list of principals with a role
 	Bindings []IAMBinding `json:"bindings,omitempty" yaml:"bindings,omitempty"`
-	// Indicates if the policy contains conditional bindings that are not displayed
-	HasConditions bool `json:"has_conditions" yaml:"has_conditions"`
 	// AWS: S3 bucket policy statements
 	Statements []PolicyStatement `json:"statements,omitempty" yaml:"statements,omitempty"`
 }
@@ -124,10 +122,18 @@ type PolicyStatement struct {
 	Conditions map[string]map[string][]string `json:"conditions,omitempty" yaml:"conditions,omitempty"`
 }
 
+// IAMCondition represents a conditional expression on an IAM binding.
+type IAMCondition struct {
+	Title       string `json:"title" yaml:"title"`
+	Description string `json:"description,omitempty" yaml:"description,omitempty"`
+	Expression  string `json:"expression" yaml:"expression"`
+}
+
 // IAMBinding represents a single binding in an IAM policy
 type IAMBinding struct {
-	Role       string   `json:"role" yaml:"role"`
-	Principals []string `json:"principals,omitempty" yaml:"principals,omitempty"`
+	Role       string        `json:"role" yaml:"role"`
+	Principals []string      `json:"principals,omitempty" yaml:"principals,omitempty"`
+	Condition  *IAMCondition `json:"condition,omitempty" yaml:"condition,omitempty"`
 }
 
 type ACLRule struct {
