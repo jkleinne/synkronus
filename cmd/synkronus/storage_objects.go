@@ -13,6 +13,9 @@ func newObjectsCmd() *cobra.Command {
 		newListObjectsCmd(),
 		newDescribeObjectCmd(),
 		newDownloadObjectCmd(),
+		newUploadObjectCmd(),
+		newDeleteObjectCmd(),
+		newCopyObjectCmd(),
 	)
 	return cmd
 }
