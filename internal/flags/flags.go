@@ -54,4 +54,19 @@ const (
 	// Output flags are used to select the output format (table, json, yaml)
 	Output      = "output"
 	OutputShort = "o"
+
+	// ObjectKey flags specify an optional custom key for uploaded objects
+	ObjectKey = "key"
+
+	// ContentType flags specify the MIME type for uploaded objects
+	ContentType = "content-type"
+
+	// Metadata flags specify user-defined metadata key-value pairs for objects
+	Metadata = "metadata"
+
+	// DestBucket flags specify the destination bucket for copy operations
+	DestBucket = "dest-bucket"
+
+	// DestKey flags specify the destination key for copy operations
+	DestKey = "dest-key"
 )

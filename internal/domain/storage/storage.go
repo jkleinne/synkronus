@@ -26,6 +26,12 @@ type Storage interface {
 
 	DownloadObject(ctx context.Context, bucketName string, objectKey string) (io.ReadCloser, error)
 
+	UploadObject(ctx context.Context, opts UploadObjectOptions, reader io.Reader) error
+
+	DeleteObject(ctx context.Context, bucketName, objectKey string) error
+
+	CopyObject(ctx context.Context, srcBucket, srcKey, destBucket, destKey string) error
+
 	ProviderName() domain.Provider
 
 	Close() error

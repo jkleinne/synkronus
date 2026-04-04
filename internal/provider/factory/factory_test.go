@@ -35,6 +35,11 @@ func (f *fakeStorage) DescribeObject(ctx context.Context, b, k string) (storage.
 func (f *fakeStorage) DownloadObject(ctx context.Context, b, k string) (io.ReadCloser, error) {
 	return nil, nil
 }
+func (f *fakeStorage) UploadObject(ctx context.Context, opts storage.UploadObjectOptions, r io.Reader) error {
+	return nil
+}
+func (f *fakeStorage) DeleteObject(ctx context.Context, b, k string) error { return nil }
+func (f *fakeStorage) CopyObject(ctx context.Context, sb, sk, db, dk string) error { return nil }
 func (f *fakeStorage) ProviderName() domain.Provider { return domain.Provider(f.name) }
 func (f *fakeStorage) Close() error                  { return nil }
 
