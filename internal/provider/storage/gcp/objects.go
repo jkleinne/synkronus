@@ -3,14 +3,27 @@ package gcp
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
+	"mime"
+	"path/filepath"
 	"synkronus/internal/domain"
 	"synkronus/internal/domain/storage"
 
 	gcpstorage "cloud.google.com/go/storage"
 	"google.golang.org/api/iterator"
 )
+
+// detectContentType returns the MIME type based on the file extension of the object key.
+// Returns empty string if the type cannot be determined (provider will use its own default).
+func detectContentType(objectKey string) string {
+	ext := filepath.Ext(objectKey)
+	if ext == "" {
+		return ""
+	}
+	return mime.TypeByExtension(ext)
+}
 
 func (g *GCPStorage) ListObjects(ctx context.Context, bucketName string, prefix string) (storage.ObjectList, error) {
 	g.logger.Debug("Starting GCP ListObjects operation (delimited)", "bucket", bucketName, "prefix", prefix)
@@ -133,4 +146,57 @@ func (g *GCPStorage) DownloadObject(ctx context.Context, bucketName string, obje
 		return nil, fmt.Errorf("failed to open object reader: %w", err)
 	}
 	return reader, nil
+}
+
+func (g *GCPStorage) UploadObject(ctx context.Context, opts storage.UploadObjectOptions, reader io.Reader) error {
+	g.logger.Debug("Starting GCP UploadObject operation", "bucket", opts.BucketName, "key", opts.ObjectKey)
+
+	w := g.client.Bucket(opts.BucketName).Object(opts.ObjectKey).NewWriter(ctx)
+
+	contentType := opts.ContentType
+	if contentType == "" {
+		contentType = detectContentType(opts.ObjectKey)
+	}
+	if contentType != "" {
+		w.ContentType = contentType
+	}
+	w.Metadata = opts.Metadata
+
+	if _, err := io.Copy(w, reader); err != nil {
+		w.Close()
+		return fmt.Errorf("uploading object %s to bucket %s: %w", opts.ObjectKey, opts.BucketName, err)
+	}
+
+	if err := w.Close(); err != nil {
+		return fmt.Errorf("uploading object %s to bucket %s: %w", opts.ObjectKey, opts.BucketName, err)
+	}
+
+	return nil
+}
+
+func (g *GCPStorage) DeleteObject(ctx context.Context, bucketName, objectKey string) error {
+	g.logger.Debug("Starting GCP DeleteObject operation", "bucket", bucketName, "key", objectKey)
+
+	err := g.client.Bucket(bucketName).Object(objectKey).Delete(ctx)
+	if err != nil {
+		if errors.Is(err, gcpstorage.ErrObjectNotExist) {
+			return nil
+		}
+		return fmt.Errorf("deleting object %s from bucket %s: %w", objectKey, bucketName, err)
+	}
+	return nil
+}
+
+func (g *GCPStorage) CopyObject(ctx context.Context, srcBucket, srcKey, destBucket, destKey string) error {
+	g.logger.Debug("Starting GCP CopyObject operation",
+		"srcBucket", srcBucket, "srcKey", srcKey,
+		"destBucket", destBucket, "destKey", destKey)
+
+	src := g.client.Bucket(srcBucket).Object(srcKey)
+	dst := g.client.Bucket(destBucket).Object(destKey)
+
+	if _, err := dst.CopierFrom(src).Run(ctx); err != nil {
+		return fmt.Errorf("copying object %s/%s to %s/%s: %w", srcBucket, srcKey, destBucket, destKey, err)
+	}
+	return nil
 }
