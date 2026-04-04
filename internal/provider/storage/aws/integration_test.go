@@ -249,3 +249,164 @@ func TestIntegration_ListObjects_Empty(t *testing.T) {
 		t.Errorf("expected 0 objects, got %d", len(objList.Objects))
 	}
 }
+
+func TestIntegration_UploadObject(t *testing.T) {
+	s := newLocalStackStorage(t)
+	ctx := context.Background()
+	bucketName := uniqueBucketName(t)
+
+	err := s.CreateBucket(ctx, storage.CreateBucketOptions{
+		Name:     bucketName,
+		Location: "us-east-1",
+	})
+	if err != nil {
+		t.Fatalf("CreateBucket failed: %v", err)
+	}
+	t.Cleanup(func() {
+		_, _ = s.client.DeleteObject(ctx, &s3.DeleteObjectInput{
+			Bucket: &bucketName,
+			Key:    strPtr("upload-test.json"),
+		})
+		_ = s.DeleteBucket(ctx, bucketName)
+	})
+
+	content := `{"key": "value"}`
+	opts := storage.UploadObjectOptions{
+		BucketName:  bucketName,
+		ObjectKey:   "upload-test.json",
+		ContentType: "application/json",
+		Metadata:    map[string]string{"env": "test"},
+	}
+
+	err = s.UploadObject(ctx, opts, strings.NewReader(content))
+	if err != nil {
+		t.Fatalf("UploadObject failed: %v", err)
+	}
+
+	obj, err := s.DescribeObject(ctx, bucketName, "upload-test.json")
+	if err != nil {
+		t.Fatalf("DescribeObject after upload failed: %v", err)
+	}
+	if obj.ContentType != "application/json" {
+		t.Errorf("expected content-type 'application/json', got %q", obj.ContentType)
+	}
+	if obj.Size != int64(len(content)) {
+		t.Errorf("expected size %d, got %d", len(content), obj.Size)
+	}
+	if obj.Metadata["env"] != "test" {
+		t.Errorf("expected metadata env=test, got %q", obj.Metadata["env"])
+	}
+
+	reader, err := s.DownloadObject(ctx, bucketName, "upload-test.json")
+	if err != nil {
+		t.Fatalf("DownloadObject after upload failed: %v", err)
+	}
+	defer reader.Close()
+	var buf bytes.Buffer
+	io.Copy(&buf, reader)
+	if buf.String() != content {
+		t.Errorf("expected content %q, got %q", content, buf.String())
+	}
+}
+
+func TestIntegration_DeleteObject(t *testing.T) {
+	s := newLocalStackStorage(t)
+	ctx := context.Background()
+	bucketName := uniqueBucketName(t)
+
+	err := s.CreateBucket(ctx, storage.CreateBucketOptions{
+		Name:     bucketName,
+		Location: "us-east-1",
+	})
+	if err != nil {
+		t.Fatalf("CreateBucket failed: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = s.DeleteBucket(ctx, bucketName)
+	})
+
+	_, err = s.client.PutObject(ctx, &s3.PutObjectInput{
+		Bucket: &bucketName,
+		Key:    strPtr("to-delete.txt"),
+		Body:   strings.NewReader("delete me"),
+	})
+	if err != nil {
+		t.Fatalf("PutObject failed: %v", err)
+	}
+
+	err = s.DeleteObject(ctx, bucketName, "to-delete.txt")
+	if err != nil {
+		t.Fatalf("DeleteObject failed: %v", err)
+	}
+
+	_, err = s.client.HeadObject(ctx, &s3.HeadObjectInput{
+		Bucket: &bucketName,
+		Key:    strPtr("to-delete.txt"),
+	})
+	if err == nil {
+		t.Error("expected HeadObject to fail after deletion")
+	}
+
+	err = s.DeleteObject(ctx, bucketName, "to-delete.txt")
+	if err != nil {
+		t.Errorf("expected idempotent delete, got error: %v", err)
+	}
+}
+
+func TestIntegration_CopyObject(t *testing.T) {
+	s := newLocalStackStorage(t)
+	ctx := context.Background()
+	srcBucket := uniqueBucketName(t)
+	dstBucket := uniqueBucketName(t)
+
+	for _, name := range []string{srcBucket, dstBucket} {
+		err := s.CreateBucket(ctx, storage.CreateBucketOptions{
+			Name:     name,
+			Location: "us-east-1",
+		})
+		if err != nil {
+			t.Fatalf("CreateBucket(%s) failed: %v", name, err)
+		}
+	}
+	t.Cleanup(func() {
+		_, _ = s.client.DeleteObject(ctx, &s3.DeleteObjectInput{Bucket: &srcBucket, Key: strPtr("original.txt")})
+		_, _ = s.client.DeleteObject(ctx, &s3.DeleteObjectInput{Bucket: &dstBucket, Key: strPtr("copied.txt")})
+		_ = s.DeleteBucket(ctx, srcBucket)
+		_ = s.DeleteBucket(ctx, dstBucket)
+	})
+
+	content := "copy me"
+	_, err := s.client.PutObject(ctx, &s3.PutObjectInput{
+		Bucket:      &srcBucket,
+		Key:         strPtr("original.txt"),
+		Body:        strings.NewReader(content),
+		ContentType: strPtr("text/plain"),
+	})
+	if err != nil {
+		t.Fatalf("PutObject failed: %v", err)
+	}
+
+	err = s.CopyObject(ctx, srcBucket, "original.txt", dstBucket, "copied.txt")
+	if err != nil {
+		t.Fatalf("CopyObject failed: %v", err)
+	}
+
+	obj, err := s.DescribeObject(ctx, dstBucket, "copied.txt")
+	if err != nil {
+		t.Fatalf("DescribeObject on copy target failed: %v", err)
+	}
+	if obj.Size != int64(len(content)) {
+		t.Errorf("expected size %d, got %d", len(content), obj.Size)
+	}
+
+	reader, err := s.DownloadObject(ctx, dstBucket, "copied.txt")
+	if err != nil {
+		t.Fatalf("DownloadObject on copy target failed: %v", err)
+	}
+	defer reader.Close()
+	var buf bytes.Buffer
+	io.Copy(&buf, reader)
+	if buf.String() != content {
+		t.Errorf("expected content %q, got %q", content, buf.String())
+	}
+}
