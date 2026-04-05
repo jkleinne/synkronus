@@ -51,7 +51,7 @@ func (s *AWSStorage) CreateBucket(ctx context.Context, opts storage.CreateBucket
 	}
 
 	// us-east-1 is the default region and must not specify a LocationConstraint
-	if s.region != "us-east-1" {
+	if s.region != s3DefaultRegion {
 		input.CreateBucketConfiguration = &types.CreateBucketConfiguration{
 			LocationConstraint: types.BucketLocationConstraint(s.region),
 		}
