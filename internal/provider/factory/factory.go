@@ -31,6 +31,30 @@ func (f *Factory) UpdateConfig(cfg *config.Config) {
 	f.cfg = cfg
 }
 
+// SupportedStorageProviders returns all registered storage provider names,
+// regardless of whether they are configured in the current config.
+func (f *Factory) SupportedStorageProviders() []string {
+	return registry.GetSupportedProviders()
+}
+
+// ConfiguredStorageProviders returns storage provider names that are both
+// registered and have sufficient configuration to be used.
+func (f *Factory) ConfiguredStorageProviders() []string {
+	return f.GetConfiguredProviders()
+}
+
+// SupportedSqlProviders returns all registered SQL provider names,
+// regardless of whether they are configured in the current config.
+func (f *Factory) SupportedSqlProviders() []string {
+	return registry.GetSupportedSqlProviders()
+}
+
+// ConfiguredSqlProviders returns SQL provider names that are both registered
+// and have sufficient configuration to be used.
+func (f *Factory) ConfiguredSqlProviders() []string {
+	return f.GetConfiguredSqlProviders()
+}
+
 // Returns a list of providers that are registered and configured
 func (f *Factory) GetConfiguredProviders() []string {
 	return getConfigured(registry.GetAllRegistrations(), f.cfg)
