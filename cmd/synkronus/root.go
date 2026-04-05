@@ -58,36 +58,7 @@ manage your infrastructure from one place.`,
 			if err != nil {
 				return err
 			}
-
-			// Redirect stderr away from the terminal — slog writes from
-			// the service layer would corrupt Bubble Tea's alt-screen.
-			// In debug mode, redirect to a log file; otherwise, discard.
-			origStderr := os.Stderr
-			var logWriter io.Writer = io.Discard
-			if debugMode {
-				logPath := filepath.Join(os.Getenv("HOME"), ".config", config.ConfigDirName, debugLogFileName)
-				if f, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0600); err == nil {
-					defer f.Close()
-					logWriter = f
-				}
-			}
-			os.Stderr = os.NewFile(0, os.DevNull)
-			// Set a TUI-safe logger and override the default
-			tuiLogger := slog.New(slog.NewTextHandler(logWriter, &slog.HandlerOptions{Level: slog.LevelDebug}))
-			slog.SetDefault(tuiLogger)
-
-			tuiErr := tui.Run(tui.Deps{
-				StorageService: app.StorageService,
-				SqlService:     app.SqlService,
-				ConfigManager:  app.ConfigManager,
-				Config:         app.Config,
-				Factory:        app.ProviderFactory,
-				Logger:         tuiLogger,
-			})
-
-			// Restore stderr after TUI exits
-			os.Stderr = origStderr
-			return tuiErr
+			return launchTUI(app, debugMode)
 		},
 		// Silence usage on error, error reporting is explicitly handled in Execute()
 		SilenceUsage: true,
@@ -105,6 +76,39 @@ manage your infrastructure from one place.`,
 	cmd.AddCommand(newSqlCmd())
 
 	return cmd
+}
+
+// launchTUI redirects stderr away from the terminal (slog writes from the service
+// layer would corrupt Bubble Tea's alt-screen), runs the TUI, and restores stderr
+// after the TUI exits. In debug mode, stderr is redirected to a log file instead
+// of being discarded.
+func launchTUI(app *appContainer, debugMode bool) error {
+	origStderr := os.Stderr
+
+	var logWriter io.Writer = io.Discard
+	if debugMode {
+		logPath := filepath.Join(os.Getenv("HOME"), ".config", config.ConfigDirName, debugLogFileName)
+		if f, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0600); err == nil {
+			defer f.Close()
+			logWriter = f
+		}
+	}
+	os.Stderr = os.NewFile(0, os.DevNull)
+
+	tuiLogger := slog.New(slog.NewTextHandler(logWriter, &slog.HandlerOptions{Level: slog.LevelDebug}))
+	slog.SetDefault(tuiLogger)
+
+	tuiErr := tui.Run(tui.Deps{
+		StorageService: app.StorageService,
+		SqlService:     app.SqlService,
+		ConfigManager:  app.ConfigManager,
+		Config:         app.Config,
+		Factory:        app.ProviderFactory,
+		Logger:         tuiLogger,
+	})
+
+	os.Stderr = origStderr
+	return tuiErr
 }
 
 // Starts the CLI execution

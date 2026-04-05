@@ -634,7 +634,7 @@ func TestBucketDetailView_IAMMixedConditions(t *testing.T) {
 	if !strings.Contains(result, "IP restricted") {
 		t.Errorf("expected condition title for objectViewer, got:\n%s", result)
 	}
-	if strings.Contains(result, "roles/storage.admin —") {
+	if strings.Contains(result, "roles/storage.admin -") {
 		t.Errorf("unconditional binding should not have condition annotation, got:\n%s", result)
 	}
 }
@@ -672,10 +672,10 @@ func TestBucketDetailView_IAMDuplicateRoleConditions(t *testing.T) {
 	result := view.RenderTable()
 
 	// Both condition annotations should include the first principal for disambiguation
-	if !strings.Contains(result, "user:a@example.com) — Business hours") {
+	if !strings.Contains(result, "user:a@example.com) - Business hours") {
 		t.Errorf("expected first principal in condition annotation, got:\n%s", result)
 	}
-	if !strings.Contains(result, "user:b@example.com) — Weekend only") {
+	if !strings.Contains(result, "user:b@example.com) - Weekend only") {
 		t.Errorf("expected second principal in condition annotation, got:\n%s", result)
 	}
 }

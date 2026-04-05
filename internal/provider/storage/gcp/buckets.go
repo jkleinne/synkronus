@@ -146,7 +146,7 @@ func (g *GCPStorage) DescribeBucket(ctx context.Context, bucketName string) (sto
 	return details, nil
 }
 
-// Fetches the bucket's IAM policy (using V3) and maps it to the domain model
+// getIAMPolicy fetches the bucket's IAM policy (using V3) and maps it to the domain model.
 func (g *GCPStorage) getIAMPolicy(ctx context.Context, bucketHandle *gcpstorage.BucketHandle) (*storage.IAMPolicy, error) {
 	policy, err := bucketHandle.IAM().V3().Policy(ctx)
 	if err != nil {
@@ -175,6 +175,16 @@ func (g *GCPStorage) getIAMPolicy(ctx context.Context, bucketHandle *gcpstorage.
 		bindings = append(bindings, b)
 	}
 
+	sortBindings(bindings)
+
+	return &storage.IAMPolicy{
+		Bindings: bindings,
+	}, nil
+}
+
+// sortBindings sorts bindings by role name, with ties broken by condition title.
+// Within each binding, principals are already sorted by the caller.
+func sortBindings(bindings []storage.IAMBinding) {
 	slices.SortFunc(bindings, func(a, b storage.IAMBinding) int {
 		if cmp := strings.Compare(a.Role, b.Role); cmp != 0 {
 			return cmp
@@ -188,10 +198,6 @@ func (g *GCPStorage) getIAMPolicy(ctx context.Context, bucketHandle *gcpstorage.
 		}
 		return strings.Compare(titleA, titleB)
 	})
-
-	return &storage.IAMPolicy{
-		Bindings: bindings,
-	}, nil
 }
 
 // getACLs fetches the bucket's ACLs
