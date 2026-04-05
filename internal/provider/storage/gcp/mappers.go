@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"synkronus/internal/domain/storage"
+	"synkronus/internal/provider/storage/shared"
 
 	gcpstorage "cloud.google.com/go/storage"
 )
@@ -58,9 +59,9 @@ func mapSoftDeletePolicy(sdp *gcpstorage.SoftDeletePolicy) *storage.SoftDeletePo
 func mapPublicAccessPrevention(pap gcpstorage.PublicAccessPrevention) string {
 	switch pap {
 	case gcpstorage.PublicAccessPreventionEnforced:
-		return "Enforced"
+		return shared.PublicAccessEnforced
 	case gcpstorage.PublicAccessPreventionInherited:
-		return "Inherited"
+		return shared.PublicAccessInherited
 	default:
 		return "Unknown"
 	}
@@ -74,7 +75,7 @@ func mapBucketEncryption(e *gcpstorage.BucketEncryption) *storage.Encryption {
 	}
 	return &storage.Encryption{
 		KmsKeyName: e.DefaultKMSKeyName,
-		Algorithm:  "AES256",
+		Algorithm:  shared.EncryptionAES256,
 	}
 }
 

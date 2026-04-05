@@ -6,24 +6,14 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"mime"
-	"path/filepath"
 	"synkronus/internal/domain"
 	"synkronus/internal/domain/storage"
+	"synkronus/internal/provider/storage/shared"
 
 	gcpstorage "cloud.google.com/go/storage"
 	"google.golang.org/api/iterator"
 )
 
-// detectContentType returns the MIME type based on the file extension of the object key.
-// Returns empty string if the type cannot be determined (provider will use its own default).
-func detectContentType(objectKey string) string {
-	ext := filepath.Ext(objectKey)
-	if ext == "" {
-		return ""
-	}
-	return mime.TypeByExtension(ext)
-}
 
 func (g *GCPStorage) ListObjects(ctx context.Context, bucketName string, prefix string) (storage.ObjectList, error) {
 	g.logger.Debug("Starting GCP ListObjects operation (delimited)", "bucket", bucketName, "prefix", prefix)
@@ -84,13 +74,13 @@ func (g *GCPStorage) DescribeObject(ctx context.Context, bucketName string, obje
 		// Customer-Managed Encryption Key (CMEK)
 		encryption = &storage.Encryption{
 			KmsKeyName: attrs.KMSKeyName,
-			Algorithm:  "AES256",
+			Algorithm:  shared.EncryptionAES256,
 		}
 	} else if attrs.CustomerKeySHA256 != "" {
 		// Customer-Supplied Encryption Key (CSEK)
 		encryption = &storage.Encryption{
 			KmsKeyName: "(Customer-Supplied Key)",
-			Algorithm:  "AES256",
+			Algorithm:  shared.EncryptionAES256,
 		}
 	}
 	// If both are empty, it's Google-managed encryption, handled by the mapper if encryption is nil
@@ -110,7 +100,7 @@ func mapObjectAttributes(attrs *gcpstorage.ObjectAttrs, encryption *storage.Encr
 	if encryption == nil {
 		encryption = &storage.Encryption{
 			KmsKeyName: "Google-managed",
-			Algorithm:  "AES256",
+			Algorithm:  shared.EncryptionAES256,
 		}
 	}
 
@@ -155,7 +145,7 @@ func (g *GCPStorage) UploadObject(ctx context.Context, opts storage.UploadObject
 
 	contentType := opts.ContentType
 	if contentType == "" {
-		contentType = detectContentType(opts.ObjectKey)
+		contentType = shared.DetectContentType(opts.ObjectKey)
 	}
 	if contentType != "" {
 		w.ContentType = contentType

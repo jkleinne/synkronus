@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"synkronus/internal/domain"
 	"synkronus/internal/domain/storage"
+	"synkronus/internal/provider/storage/shared"
 
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
@@ -30,7 +31,7 @@ func (s *AWSStorage) ListBuckets(ctx context.Context) ([]storage.Bucket, error) 
 				Name:         derefString(b.Name),
 				Provider:     domain.AWS,
 				Location:     s.region,
-				StorageClass: "STANDARD",
+				StorageClass: shared.StorageClassStandard,
 				UsageBytes:   -1,
 			}
 			if b.CreationDate != nil {
