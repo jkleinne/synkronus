@@ -16,19 +16,14 @@ import (
 
 func init() {
 	registry.RegisterSqlProvider("gcp", registry.Registration[domainsql.SQL]{
-		ConfigCheck: isConfigured,
+		ConfigCheck: config.IsGCPConfigured,
 		Initializer: initialize,
 	})
 }
 
-// Checks if the GCP configuration block is present and the project ID is set
-func isConfigured(cfg *config.Config) bool {
-	return cfg.GCP != nil && cfg.GCP.Project != ""
-}
-
 // Initializes the GCP SQL client from the configuration
 func initialize(ctx context.Context, cfg *config.Config, logger *slog.Logger) (domainsql.SQL, error) {
-	if !isConfigured(cfg) {
+	if !config.IsGCPConfigured(cfg) {
 		return nil, fmt.Errorf("GCP configuration missing or incomplete")
 	}
 	return NewGCPSQL(ctx, cfg.GCP.Project, logger)

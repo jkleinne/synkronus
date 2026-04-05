@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"synkronus/internal/flags"
+	"synkronus/internal/provider/storage/shared"
 
 	"github.com/spf13/cobra"
 )
@@ -48,7 +49,7 @@ func newDownloadObjectCmd() *cobra.Command {
 				return err
 			}
 
-			return writeToFile(destPath, reader)
+			return shared.WriteToFile(destPath, reader)
 		},
 	}
 
@@ -65,7 +66,7 @@ func newDownloadObjectCmd() *cobra.Command {
 // If outputPath is an existing directory (or ends with a path separator), the
 // object's basename is appended. Otherwise, outputPath is used as-is.
 func resolveOutputPath(outputPath string, objectKey string) (string, error) {
-	basename, err := objectBasename(objectKey)
+	basename, err := shared.ObjectBasename(objectKey)
 	if err != nil {
 		return "", err
 	}
@@ -79,37 +80,4 @@ func resolveOutputPath(outputPath string, objectKey string) (string, error) {
 	}
 
 	return outputPath, nil
-}
-
-// objectBasename extracts a safe filename from an object key.
-func objectBasename(objectKey string) (string, error) {
-	if strings.HasSuffix(objectKey, "/") {
-		return "", fmt.Errorf("cannot download directory marker object '%s'", objectKey)
-	}
-	base := filepath.Base(objectKey)
-	if base == "." || base == "" {
-		return "", fmt.Errorf("cannot derive filename from object key '%s'", objectKey)
-	}
-	return base, nil
-}
-
-// writeToFile creates the destination file, copies the reader content into it,
-// and removes the file if the copy fails to avoid leaving partial data on disk.
-func writeToFile(path string, src io.Reader) error {
-	f, err := os.Create(path)
-	if err != nil {
-		return fmt.Errorf("error creating file '%s': %w", path, err)
-	}
-
-	_, copyErr := io.Copy(f, src)
-	closeErr := f.Close()
-
-	if copyErr != nil {
-		os.Remove(path)
-		return fmt.Errorf("error writing to '%s': %w", path, copyErr)
-	}
-	if closeErr != nil {
-		return fmt.Errorf("error closing '%s': %w", path, closeErr)
-	}
-	return nil
 }

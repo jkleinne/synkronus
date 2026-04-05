@@ -3,7 +3,6 @@ package tui
 import (
 	"context"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -14,6 +13,7 @@ import (
 	"synkronus/internal/domain/sql"
 	"synkronus/internal/domain/storage"
 	"synkronus/internal/provider/factory"
+	"synkronus/internal/provider/storage/shared"
 	"synkronus/internal/service"
 	"synkronus/internal/tui/ui"
 )
@@ -163,7 +163,11 @@ func fetchInstanceDetailCmd(svc *service.SqlService, instanceName, provider stri
 func fetchConfigCmd(cm *config.ConfigManager) tea.Cmd {
 	return func() tea.Msg {
 		settings := cm.GetAllSettings()
-		entries := flattenSettings(settings, "")
+		flat := config.FlattenSettings(settings)
+		var entries []ui.ConfigEntry
+		for key, val := range flat {
+			entries = append(entries, ui.ConfigEntry{Key: key, Value: val})
+		}
 		return ConfigLoadedMsg{Entries: entries, Err: nil}
 	}
 }
@@ -194,7 +198,7 @@ func downloadObjectCmd(svc *service.StorageService, bucketName, objectKey, provi
 		ctx, cancel := context.WithTimeout(context.Background(), transferTimeout)
 		defer cancel()
 
-		basename, err := objectBasename(objectKey)
+		basename, err := shared.ObjectBasename(objectKey)
 		if err != nil {
 			return ObjectDownloadedMsg{Err: err}
 		}
@@ -212,20 +216,8 @@ func downloadObjectCmd(svc *service.StorageService, bucketName, objectKey, provi
 
 		destPath := filepath.Join(expandedDir, basename)
 
-		f, err := os.Create(destPath)
-		if err != nil {
-			return ObjectDownloadedMsg{Err: fmt.Errorf("error creating file '%s': %w", destPath, err)}
-		}
-
-		_, copyErr := io.Copy(f, reader)
-		closeErr := f.Close()
-
-		if copyErr != nil {
-			os.Remove(destPath)
-			return ObjectDownloadedMsg{Err: fmt.Errorf("error writing to '%s': %w", destPath, copyErr)}
-		}
-		if closeErr != nil {
-			return ObjectDownloadedMsg{Err: fmt.Errorf("error closing '%s': %w", destPath, closeErr)}
+		if err := shared.WriteToFile(destPath, reader); err != nil {
+			return ObjectDownloadedMsg{Err: err}
 		}
 
 		return ObjectDownloadedMsg{FilePath: destPath}
@@ -282,18 +274,6 @@ func deleteObjectCmd(svc *service.StorageService, bucketName, objectKey, provide
 	}
 }
 
-// objectBasename extracts a safe filename from an object key.
-func objectBasename(objectKey string) (string, error) {
-	if strings.HasSuffix(objectKey, "/") {
-		return "", fmt.Errorf("cannot download directory marker object '%s'", objectKey)
-	}
-	base := filepath.Base(objectKey)
-	if base == "." || base == "" {
-		return "", fmt.Errorf("cannot derive filename from object key '%s'", objectKey)
-	}
-	return base, nil
-}
-
 // expandTilde replaces a leading ~ with the user's home directory.
 func expandTilde(path string) (string, error) {
 	if path == "~" {
@@ -340,24 +320,3 @@ func clearStatusCmd() tea.Cmd {
 	})
 }
 
-// flattenSettings converts the nested config map into a flat key-value list.
-// Nested keys are joined with "." (e.g., {"gcp": {"project": "x"}} → "gcp.project" = "x").
-func flattenSettings(settings map[string]any, prefix string) []ui.ConfigEntry {
-	var entries []ui.ConfigEntry
-	for key, val := range settings {
-		fullKey := key
-		if prefix != "" {
-			fullKey = prefix + "." + key
-		}
-		switch v := val.(type) {
-		case map[string]any:
-			entries = append(entries, flattenSettings(v, fullKey)...)
-		default:
-			entries = append(entries, ui.ConfigEntry{
-				Key:   fullKey,
-				Value: fmt.Sprintf("%v", v),
-			})
-		}
-	}
-	return entries
-}

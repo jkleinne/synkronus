@@ -37,6 +37,12 @@ type Config struct {
 	AWS *AWSConfig `json:"aws,omitempty" validate:"omitempty"`
 }
 
+// IsGCPConfigured returns true if the GCP configuration block is present
+// and the project ID is set. Used by GCP provider registration callbacks.
+func IsGCPConfigured(cfg *Config) bool {
+	return cfg.GCP != nil && cfg.GCP.Project != ""
+}
+
 type ConfigManager struct {
 	v         *viper.Viper
 	validator *validator.Validate

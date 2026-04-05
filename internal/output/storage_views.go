@@ -340,21 +340,7 @@ func (v BucketDetailView) renderLifecycle() string {
 }
 
 func (v BucketDetailView) renderLabels() string {
-	if len(v.Labels) == 0 {
-		return ""
-	}
-
-	var sb strings.Builder
-	sb.WriteString(FormatSectionTitle("Labels"))
-	sb.WriteString("\n")
-	table := NewTable([]string{"Key", "Value"})
-	for k, val := range v.Labels {
-		table.AddRow([]string{k, val})
-	}
-	sb.WriteString(table.String())
-	sb.WriteString("\n\n")
-
-	return sb.String()
+	return renderLabelsSection(v.Labels)
 }
 
 // ObjectListView renders an object listing as an ASCII table.

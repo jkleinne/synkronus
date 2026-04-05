@@ -2,21 +2,23 @@ package main
 
 import (
 	"testing"
+
+	synkconfig "synkronus/internal/config"
 )
 
-func TestFlattenConfigMap_EmptyMap(t *testing.T) {
-	result := flattenConfigMap(map[string]interface{}{})
+func TestFlattenSettings_EmptyMap(t *testing.T) {
+	result := synkconfig.FlattenSettings(map[string]interface{}{})
 	if len(result) != 0 {
 		t.Errorf("expected empty map, got %v", result)
 	}
 }
 
-func TestFlattenConfigMap_SingleLevel(t *testing.T) {
+func TestFlattenSettings_SingleLevel(t *testing.T) {
 	input := map[string]interface{}{
 		"key1": "value1",
 		"key2": "value2",
 	}
-	result := flattenConfigMap(input)
+	result := synkconfig.FlattenSettings(input)
 	if len(result) != 2 {
 		t.Fatalf("expected 2 entries, got %d", len(result))
 	}
@@ -28,13 +30,13 @@ func TestFlattenConfigMap_SingleLevel(t *testing.T) {
 	}
 }
 
-func TestFlattenConfigMap_NestedTwoLevels(t *testing.T) {
+func TestFlattenSettings_NestedTwoLevels(t *testing.T) {
 	input := map[string]interface{}{
 		"gcp": map[string]interface{}{
 			"project": "my-project",
 		},
 	}
-	result := flattenConfigMap(input)
+	result := synkconfig.FlattenSettings(input)
 	if len(result) != 1 {
 		t.Fatalf("expected 1 entry, got %d: %v", len(result), result)
 	}
@@ -43,7 +45,7 @@ func TestFlattenConfigMap_NestedTwoLevels(t *testing.T) {
 	}
 }
 
-func TestFlattenConfigMap_DeeplyNested(t *testing.T) {
+func TestFlattenSettings_DeeplyNested(t *testing.T) {
 	input := map[string]interface{}{
 		"a": map[string]interface{}{
 			"b": map[string]interface{}{
@@ -51,7 +53,7 @@ func TestFlattenConfigMap_DeeplyNested(t *testing.T) {
 			},
 		},
 	}
-	result := flattenConfigMap(input)
+	result := synkconfig.FlattenSettings(input)
 	if len(result) != 1 {
 		t.Fatalf("expected 1 entry, got %d: %v", len(result), result)
 	}
@@ -60,28 +62,28 @@ func TestFlattenConfigMap_DeeplyNested(t *testing.T) {
 	}
 }
 
-func TestFlattenConfigMap_MixedValueTypes(t *testing.T) {
+func TestFlattenSettings_MixedValueTypes(t *testing.T) {
 	input := map[string]interface{}{
 		"str":  "hello",
 		"num":  42,
 		"flag": true,
 	}
-	result := flattenConfigMap(input)
+	result := synkconfig.FlattenSettings(input)
 	if len(result) != 3 {
 		t.Fatalf("expected 3 entries, got %d", len(result))
 	}
 	if result["str"] != "hello" {
 		t.Errorf("expected str=hello, got %v", result["str"])
 	}
-	if result["num"] != 42 {
+	if result["num"] != "42" {
 		t.Errorf("expected num=42, got %v", result["num"])
 	}
-	if result["flag"] != true {
+	if result["flag"] != "true" {
 		t.Errorf("expected flag=true, got %v", result["flag"])
 	}
 }
 
-func TestFlattenConfigMap_MultipleNestedBranches(t *testing.T) {
+func TestFlattenSettings_MultipleNestedBranches(t *testing.T) {
 	input := map[string]interface{}{
 		"gcp": map[string]interface{}{
 			"project": "p1",
@@ -90,7 +92,7 @@ func TestFlattenConfigMap_MultipleNestedBranches(t *testing.T) {
 			"region": "us-east-1",
 		},
 	}
-	result := flattenConfigMap(input)
+	result := synkconfig.FlattenSettings(input)
 	if len(result) != 2 {
 		t.Fatalf("expected 2 entries, got %d: %v", len(result), result)
 	}
@@ -102,15 +104,16 @@ func TestFlattenConfigMap_MultipleNestedBranches(t *testing.T) {
 	}
 }
 
-func TestFlattenConfigMap_NilValue(t *testing.T) {
+func TestFlattenSettings_NilValue(t *testing.T) {
 	input := map[string]interface{}{
 		"key": nil,
 	}
-	result := flattenConfigMap(input)
+	result := synkconfig.FlattenSettings(input)
+	// nil values stringify to "<nil>" — the entry exists
 	if len(result) != 1 {
 		t.Fatalf("expected 1 entry, got %d", len(result))
 	}
-	if result["key"] != nil {
-		t.Errorf("expected key=nil, got %v", result["key"])
+	if result["key"] != "<nil>" {
+		t.Errorf("expected key=<nil>, got %v", result["key"])
 	}
 }

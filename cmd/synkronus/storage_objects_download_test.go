@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"synkronus/internal/provider/storage/shared"
 )
 
 func TestObjectBasename(t *testing.T) {
@@ -24,7 +26,7 @@ func TestObjectBasename(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := objectBasename(tt.objectKey)
+			got, err := shared.ObjectBasename(tt.objectKey)
 			if tt.wantErr != "" {
 				if err == nil {
 					t.Fatalf("expected error containing %q, got nil", tt.wantErr)
@@ -38,7 +40,7 @@ func TestObjectBasename(t *testing.T) {
 				t.Fatalf("unexpected error: %v", err)
 			}
 			if got != tt.want {
-				t.Errorf("objectBasename(%q) = %q, want %q", tt.objectKey, got, tt.want)
+				t.Errorf("shared.ObjectBasename(%q) = %q, want %q", tt.objectKey, got, tt.want)
 			}
 		})
 	}
@@ -95,7 +97,7 @@ func TestWriteToFile(t *testing.T) {
 		path := filepath.Join(dir, "output.txt")
 		content := "hello world"
 
-		err := writeToFile(path, strings.NewReader(content))
+		err := shared.WriteToFile(path, strings.NewReader(content))
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -113,7 +115,7 @@ func TestWriteToFile(t *testing.T) {
 		dir := t.TempDir()
 		path := filepath.Join(dir, "partial.txt")
 
-		err := writeToFile(path, &failingReader{failAfter: 5})
+		err := shared.WriteToFile(path, &failingReader{failAfter: 5})
 		if err == nil {
 			t.Fatal("expected error from failing reader")
 		}
