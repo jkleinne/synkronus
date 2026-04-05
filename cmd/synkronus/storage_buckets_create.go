@@ -6,6 +6,7 @@ import (
 	"strings"
 	"synkronus/internal/domain/storage"
 	"synkronus/internal/flags"
+	"synkronus/internal/provider/storage/shared"
 
 	"github.com/spf13/cobra"
 )
@@ -44,8 +45,8 @@ func newCreateBucketCmd() *cobra.Command {
 				opts.Versioning = &versioning
 			}
 			if cmd.Flags().Changed(flags.UniformAccess) {
-				if strings.ToLower(provider) != "gcp" {
-					return fmt.Errorf("--%s is only supported for GCP", flags.UniformAccess)
+				if !shared.SupportsOption(provider, "uniform-access") {
+					return fmt.Errorf("--%s is not supported for provider %q", flags.UniformAccess, provider)
 				}
 				opts.UniformBucketLevelAccess = &uniformAccess
 			}

@@ -9,6 +9,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"synkronus/internal/domain/storage"
+	"synkronus/internal/provider/storage/shared"
 )
 
 // Key constants for tea.KeyMsg.String() comparisons.
@@ -364,8 +365,8 @@ func (m *Model) updateCreateHiddenFields() {
 	if m.storage.createHiddenFields == nil {
 		m.storage.createHiddenFields = make(map[int]bool)
 	}
-	// Uniform Access is GCP-only
-	m.storage.createHiddenFields[createFieldUniformAccess] = strings.ToLower(m.storage.createProvider) != "gcp"
+	// Uniform Access is only shown for providers that support it.
+	m.storage.createHiddenFields[createFieldUniformAccess] = !shared.SupportsOption(m.storage.createProvider, "uniform-access")
 }
 
 // cycleOption advances or retreats through a list of options based on key direction.

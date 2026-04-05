@@ -6,7 +6,6 @@ import (
 	"strings"
 	"synkronus/internal/flags"
 	"synkronus/internal/output"
-	"synkronus/internal/provider/registry"
 
 	"github.com/spf13/cobra"
 )
@@ -26,10 +25,10 @@ Use the --providers flag to specify which providers to query (e.g., --providers 
 			}
 
 			resolver := &ProviderResolver{
-				IsSupported:   registry.IsSupported,
+				IsSupported:   isInList(app.ProviderFactory.SupportedStorageProviders),
 				IsConfigured:  app.ProviderFactory.IsConfigured,
-				GetConfigured: app.ProviderFactory.GetConfiguredProviders,
-				GetSupported:  registry.GetSupportedProviders,
+				GetConfigured: app.ProviderFactory.ConfiguredStorageProviders,
+				GetSupported:  app.ProviderFactory.SupportedStorageProviders,
 				Label:         "storage",
 			}
 			providersToQuery, err := resolver.Resolve(providersList)
@@ -47,7 +46,7 @@ Use the --providers flag to specify which providers to query (e.g., --providers 
 
 			if len(allBuckets) == 0 {
 				if len(providersToQuery) == 0 {
-					fmt.Printf("No providers configured. Use 'synkronus config set'. Supported providers: %s\n", strings.Join(registry.GetSupportedProviders(), ", "))
+					fmt.Printf("No providers configured. Use 'synkronus config set'. Supported providers: %s\n", strings.Join(app.ProviderFactory.SupportedStorageProviders(), ", "))
 				} else {
 					fmt.Println("No buckets found.")
 				}

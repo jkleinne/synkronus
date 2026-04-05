@@ -6,16 +6,15 @@ import (
 	"fmt"
 	"log/slog"
 
-	"synkronus/internal/provider/factory"
 	"synkronus/internal/domain/sql"
 )
 
 type SqlService struct {
-	providerFactory *factory.Factory
+	providerFactory SqlProviderFactory
 	logger          *slog.Logger
 }
 
-func NewSqlService(providerFactory *factory.Factory, logger *slog.Logger) *SqlService {
+func NewSqlService(providerFactory SqlProviderFactory, logger *slog.Logger) *SqlService {
 	return &SqlService{
 		providerFactory: providerFactory,
 		logger:          logger.With("service", "SqlService"),

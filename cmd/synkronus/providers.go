@@ -15,6 +15,21 @@ type ProviderResolver struct {
 	Label         string
 }
 
+// isInList returns a membership-check function that reports whether a given name
+// appears in the slice returned by list, using case-insensitive comparison.
+// Used to adapt a factory slice method into the IsSupported/IsConfigured function
+// fields of ProviderResolver without importing the registry package.
+func isInList(list func() []string) func(string) bool {
+	return func(name string) bool {
+		for _, n := range list() {
+			if strings.EqualFold(n, name) {
+				return true
+			}
+		}
+		return false
+	}
+}
+
 // Resolve validates the requested providers and returns a deduplicated, normalized list.
 // If no providers are requested, returns all configured providers.
 func (r *ProviderResolver) Resolve(requested []string) ([]string, error) {
