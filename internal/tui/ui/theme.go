@@ -23,7 +23,6 @@ const (
 	ColorTextDim       = "#555555"
 
 	ColorStatusGreen = "#22c55e"
-	ColorStatusAmber = "#f59e0b"
 	ColorStatusRed   = "#ef4444"
 	ColorError       = "#FF0000"
 )
@@ -109,12 +108,6 @@ var (
 
 	HintDescStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color(ColorTextDim))
-
-	LabelTagStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color(ColorPurpleMuted)).
-			Background(lipgloss.Color(ColorSurfaceLight)).
-			PaddingLeft(1).
-			PaddingRight(1)
 
 	SpinnerStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color(ColorPurple))

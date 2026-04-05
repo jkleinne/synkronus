@@ -389,7 +389,7 @@ func (m *Model) renderContent() string {
 func (m *Model) renderOverlay() string {
 	switch m.overlay {
 	case OverlayHelp:
-		content := ui.RenderHelpContent(int(m.viewState), int(m.activeTab))
+		content := ui.RenderHelpContent()
 		return ui.RenderModal("Help", content, m.width, m.height)
 
 	case OverlayCreateBucket:
@@ -427,7 +427,7 @@ func (m *Model) renderOverlay() string {
 			title = "Delete Object"
 			targetName = m.storage.deleteObjectKey
 		}
-		content := ui.RenderDeleteConfirm(targetName, m.storage.deleteInput, m.textInput.View())
+		content := ui.RenderDeleteConfirm(targetName, m.textInput.View())
 		return ui.RenderModal(title, content, m.width, m.height)
 
 	case OverlayConfigAdd:

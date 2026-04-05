@@ -8,14 +8,6 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-// Viewport holds terminal dimensions and scroll state for render functions.
-type Viewport struct {
-	Width  int
-	Height int
-	Offset int
-	Cursor int
-}
-
 // ProviderStatus represents a cloud provider's connectivity for the tab bar.
 type ProviderStatus struct {
 	Name       string
@@ -261,7 +253,7 @@ func RenderStatusMessage(msg string, termWidth int) string {
 }
 
 // RenderHelpContent renders a full help screen listing keybindings grouped by context.
-func RenderHelpContent(viewState int, activeTab int) string {
+func RenderHelpContent() string {
 	contexts := []BindingContext{
 		ContextStorageList, ContextBucketDetail, ContextObjectList,
 		ContextSqlList, ContextInstanceDetail,
@@ -289,37 +281,12 @@ func CenterContent(content string, termWidth int) string {
 	return lipgloss.PlaceHorizontal(termWidth, lipgloss.Center, content)
 }
 
-// FormatBool renders a boolean as "enabled"/"disabled" with appropriate color.
-func FormatBool(b bool) string {
-	if b {
-		return StatusGreenStyle.Render("enabled")
-	}
-	return StatusRedStyle.Render("disabled")
-}
-
 // FormatBoolValue converts a boolean to a KeyValue-compatible string + style.
 func FormatBoolValue(b bool) (string, ValueStyle) {
 	if b {
 		return "enabled", ValueEnabled
 	}
 	return "disabled", ValueDisabled
-}
-
-// FormatOptionalString returns the value or a dim "none" placeholder.
-func FormatOptionalString(s string) string {
-	if s == "" {
-		return TextDimStyle.Render("none")
-	}
-	return s
-}
-
-// RenderCount formats a count summary like "5 buckets · 1 provider".
-func RenderCount(count int, noun string, extra string) string {
-	s := fmt.Sprintf("%d %s", count, noun)
-	if extra != "" {
-		s += " · " + extra
-	}
-	return TextDimStyle.Render(s)
 }
 
 func intersperse(items []string, sep string) []string {

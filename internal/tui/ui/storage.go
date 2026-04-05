@@ -299,7 +299,7 @@ func RenderCreateBucketForm(fields CreateBucketFormFields, activeField int, text
 
 // RenderDeleteConfirm renders the typed-confirmation delete modal content.
 // resourceName is the bucket name or object key the user must type to confirm.
-func RenderDeleteConfirm(resourceName, currentInput, textInputView string) string {
+func RenderDeleteConfirm(resourceName, textInputView string) string {
 	warning := TextSecondaryStyle.Render("Type ") +
 		SectionHeaderStyle.Render("'"+resourceName+"'") +
 		TextSecondaryStyle.Render(" to confirm deletion:")
