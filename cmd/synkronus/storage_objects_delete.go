@@ -26,28 +26,17 @@ Confirmation is required by typing the object key, unless the --force flag is us
 			}
 
 			objectKey := args[0]
+			warningMessage := fmt.Sprintf(
+				"\nWARNING: You are about to delete object '%s' from bucket '%s' (%s).\nThis action cannot be undone.",
+				objectKey, bucket, strings.ToUpper(provider))
 
-			if !force {
-				warningMessage := fmt.Sprintf(
-					"\nWARNING: You are about to delete object '%s' from bucket '%s' (%s).\nThis action cannot be undone.",
-					objectKey, bucket, strings.ToUpper(provider))
-
-				confirmed, err := app.Prompter.Confirm(warningMessage, objectKey)
-				if err != nil {
-					return fmt.Errorf("failed to read confirmation input: %w", err)
+			return confirmThenRun(app.Prompter, warningMessage, objectKey, force, func() error {
+				if err := app.StorageService.DeleteObject(cmd.Context(), bucket, objectKey, provider); err != nil {
+					return err
 				}
-				if !confirmed {
-					fmt.Println("Deletion aborted: Confirmation mismatch or cancelled.")
-					return ErrOperationAborted
-				}
-			}
-
-			if err := app.StorageService.DeleteObject(cmd.Context(), bucket, objectKey, provider); err != nil {
-				return err
-			}
-
-			fmt.Printf("Object '%s' deleted successfully from bucket '%s' on provider %s.\n", objectKey, bucket, provider)
-			return nil
+				fmt.Printf("Object '%s' deleted successfully from bucket '%s' on provider %s.\n", objectKey, bucket, provider)
+				return nil
+			})
 		},
 	}
 

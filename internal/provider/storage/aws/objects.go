@@ -4,11 +4,10 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"mime"
 	"net/url"
-	"path/filepath"
 	"synkronus/internal/domain"
 	"synkronus/internal/domain/storage"
+	"synkronus/internal/provider/storage/shared"
 
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 )
@@ -129,7 +128,7 @@ func (s *AWSStorage) UploadObject(ctx context.Context, opts storage.UploadObject
 
 	contentType := opts.ContentType
 	if contentType == "" {
-		contentType = detectContentType(opts.ObjectKey)
+		contentType = shared.DetectContentType(opts.ObjectKey)
 	}
 	if contentType != "" {
 		input.ContentType = &contentType
@@ -173,21 +172,13 @@ func (s *AWSStorage) CopyObject(ctx context.Context, srcBucket, srcKey, destBuck
 	return nil
 }
 
-// storageClassOrDefault returns "STANDARD" when S3 omits the storage class
+// storageClassOrDefault returns STANDARD when S3 omits the storage class
 // (which it does for STANDARD-class objects).
 func storageClassOrDefault(sc string) string {
 	if sc == "" {
-		return "STANDARD"
+		return shared.StorageClassStandard
 	}
 	return sc
-}
-
-func detectContentType(objectKey string) string {
-	ext := filepath.Ext(objectKey)
-	if ext == "" {
-		return ""
-	}
-	return mime.TypeByExtension(ext)
 }
 
 func derefInt64(p *int64) int64 {

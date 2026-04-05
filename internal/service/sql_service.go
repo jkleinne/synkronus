@@ -44,26 +44,18 @@ func (s *SqlService) ListAllInstances(ctx context.Context, providerNames []strin
 // DescribeInstance returns detailed information about a specific SQL instance from a single provider
 func (s *SqlService) DescribeInstance(ctx context.Context, instanceName, providerName string) (sql.Instance, error) {
 	s.logger.Debug("Starting DescribeInstance operation", "instance", instanceName, "provider", providerName)
-
-	client, err := s.getSqlClient(ctx, providerName)
-	if err != nil {
-		return sql.Instance{}, err
-	}
-	defer client.Close()
-
-	instance, err := client.DescribeInstance(ctx, instanceName)
-	if err != nil {
-		s.logger.Error("Failed to describe SQL instance", "instance", instanceName, "provider", providerName, "error", err)
-		return sql.Instance{}, fmt.Errorf("describing SQL instance %q on %s: %w", instanceName, providerName, err)
-	}
-	return instance, nil
+	return withClientResult(ctx, s.getSqlClient, providerName, func(client sql.SQL) (sql.Instance, error) {
+		instance, err := client.DescribeInstance(ctx, instanceName)
+		if err != nil {
+			return sql.Instance{}, fmt.Errorf("describing SQL instance %q on %s: %w", instanceName, providerName, err)
+		}
+		return instance, nil
+	})
 }
 
-// Helper to initialize the SQL client and handle common error logging
 func (s *SqlService) getSqlClient(ctx context.Context, providerName string) (sql.SQL, error) {
 	client, err := s.providerFactory.GetSqlProvider(ctx, providerName)
 	if err != nil {
-		s.logger.Error("Failed to initialize SQL provider", "provider", providerName, "error", err)
 		return nil, fmt.Errorf("initializing SQL provider %s: %w", providerName, err)
 	}
 	return client, nil

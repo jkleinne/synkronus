@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"synkronus/internal/domain/storage"
+	"synkronus/internal/provider/storage/shared"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
@@ -155,9 +156,9 @@ func mapPublicAccessBlock(cfg *types.PublicAccessBlockConfiguration) string {
 	}
 	if derefBool(cfg.BlockPublicAcls) && derefBool(cfg.BlockPublicPolicy) &&
 		derefBool(cfg.IgnorePublicAcls) && derefBool(cfg.RestrictPublicBuckets) {
-		return "Enforced"
+		return shared.PublicAccessEnforced
 	}
-	return "Inherited"
+	return shared.PublicAccessInherited
 }
 
 func derefBool(p *bool) bool {

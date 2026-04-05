@@ -25,27 +25,15 @@ Confirmation is required by typing the bucket name, unless the --force flag is u
 			}
 
 			bucketName := args[0]
+			warningMessage := fmt.Sprintf("\nWARNING: You are about to delete the bucket '%s' on provider '%s'.\nThis action CANNOT be undone and may result in permanent data loss.", bucketName, strings.ToUpper(provider))
 
-			if !force {
-				warningMessage := fmt.Sprintf("\nWARNING: You are about to delete the bucket '%s' on provider '%s'.\nThis action CANNOT be undone and may result in permanent data loss.", bucketName, strings.ToUpper(provider))
-
-				confirmed, err := app.Prompter.Confirm(warningMessage, bucketName)
-				if err != nil {
-					return fmt.Errorf("failed to read confirmation input: %w", err)
+			return confirmThenRun(app.Prompter, warningMessage, bucketName, force, func() error {
+				if err := app.StorageService.DeleteBucket(cmd.Context(), bucketName, provider); err != nil {
+					return err
 				}
-				if !confirmed {
-					fmt.Println("Deletion aborted: Confirmation mismatch or cancelled.")
-					return ErrOperationAborted
-				}
-			}
-
-			err = app.StorageService.DeleteBucket(cmd.Context(), bucketName, provider)
-			if err != nil {
-				return err
-			}
-
-			fmt.Printf("Bucket '%s' deleted successfully from provider %s.\n", bucketName, provider)
-			return nil
+				fmt.Printf("Bucket '%s' deleted successfully from provider %s.\n", bucketName, provider)
+				return nil
+			})
 		},
 	}
 	cmd.Flags().StringVarP(&provider, flags.Provider, flags.ProviderShort, "", "The provider where the bucket resides (required)")
