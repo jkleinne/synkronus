@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"slices"
 	"strings"
+	"net/http"
 	"synkronus/internal/domain"
 	"synkronus/internal/domain/storage"
 
@@ -32,7 +33,7 @@ func (g *GCPStorage) ListBuckets(ctx context.Context) ([]storage.Bucket, error) 
 	it := g.client.Buckets(ctx, g.projectID)
 	for {
 		bucketAttrs, err := it.Next()
-		if err == iterator.Done {
+		if errors.Is(err, iterator.Done) {
 			break
 		}
 		if err != nil {
@@ -155,8 +156,7 @@ func (g *GCPStorage) getIAMPolicy(ctx context.Context, bucketHandle *gcpstorage.
 	var bindings []storage.IAMBinding
 
 	for _, binding := range policy.Bindings {
-		principals := make([]string, len(binding.Members))
-		copy(principals, binding.Members)
+		principals := slices.Clone(binding.Members)
 		slices.Sort(principals)
 
 		b := storage.IAMBinding{
@@ -200,7 +200,7 @@ func (g *GCPStorage) getACLs(ctx context.Context, bucketHandle *gcpstorage.Bucke
 	if err != nil {
 		var gcsErr *googleapi.Error
 		// If UBLA is enabled, GCP returns a 400 error when trying to list ACLs (treating as expected behavior)
-		if errors.As(err, &gcsErr) && gcsErr.Code == 400 {
+		if errors.As(err, &gcsErr) && gcsErr.Code == http.StatusBadRequest {
 			return []storage.ACLRule{}, nil
 		}
 		return nil, fmt.Errorf("failed to list ACLs: %w", err)

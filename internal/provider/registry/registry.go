@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"maps"
 	"slices"
 	"strings"
 	"sync"
@@ -58,12 +59,7 @@ func (r *Registry[T]) GetSupported() []string {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
-	names := make([]string, 0, len(r.entries))
-	for name := range r.entries {
-		names = append(names, name)
-	}
-	slices.Sort(names)
-	return names
+	return slices.Sorted(maps.Keys(r.entries))
 }
 
 func (r *Registry[T]) IsSupported(name string) bool {

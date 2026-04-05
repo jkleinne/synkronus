@@ -24,7 +24,8 @@ const (
 	keyRight    = "right"
 )
 
-// createFormFieldCount is the number of fields in the create-bucket overlay.
+// createFormFieldCount is the total number of fields in the create-bucket form.
+// See constants.go for named indices.
 const createFormFieldCount = 8
 
 // Static options for selector fields in the create-bucket form.
@@ -57,17 +58,17 @@ func (m *Model) handleOverlayKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.syncTextInputToField()
 			switch m.overlay {
 			case OverlayCreateBucket:
-				m.storage.createField = m.nextVisibleCreateField(m.storage.createField)
+				m.storage.createFieldIndex = m.nextVisibleCreateField(m.storage.createFieldIndex)
 				m.loadFieldIntoTextInput()
 			case OverlayConfigAdd:
 				// Toggle between key (field 0) and value (field 1).
-				if m.storage.createField == 0 {
+				if m.storage.createFieldIndex == 0 {
 					m.config.editKey = m.textInput.Value()
-					m.storage.createField = 1
+					m.storage.createFieldIndex = 1
 					m.textInput.SetValue(m.config.editValue)
 				} else {
 					m.config.editValue = m.textInput.Value()
-					m.storage.createField = 0
+					m.storage.createFieldIndex = 0
 					m.textInput.SetValue(m.config.editKey)
 				}
 				m.textInput.Focus()
@@ -87,12 +88,12 @@ func (m *Model) handleOverlayKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		default:
 			// Selector fields cycle with left/right instead of free text.
 			if m.overlay == OverlayCreateBucket {
-				if options := m.getCreateFieldOptions(m.storage.createField); len(options) > 0 {
-					value := cycleOption(options, m.getCreateFieldValue(m.storage.createField), key)
-					m.setCreateFieldValue(m.storage.createField, value)
+				if options := m.getCreateFieldOptions(m.storage.createFieldIndex); len(options) > 0 {
+					value := cycleOption(options, m.getCreateFieldValue(m.storage.createFieldIndex), key)
+					m.setCreateFieldValue(m.storage.createFieldIndex, value)
 					m.textInput.SetValue(value)
 					// Update hidden fields when provider changes
-					if m.storage.createField == 1 {
+					if m.storage.createFieldIndex == createFieldProvider {
 						m.updateCreateHiddenFields()
 					}
 					return m, nil
@@ -144,17 +145,17 @@ func (m *Model) handleOverlaySubmit() (tea.Model, tea.Cmd) {
 		if labelsStr := strings.TrimSpace(m.storage.createLabels); labelsStr != "" {
 			opts.Labels = parseLabels(labelsStr)
 		}
-		if v := strings.TrimSpace(strings.ToLower(m.storage.createVersioning)); v == "yes" {
+		if v := strings.TrimSpace(strings.ToLower(m.storage.createVersioning)); v == optionYes {
 			t := true
 			opts.Versioning = &t
-		} else if v == "no" {
+		} else if v == optionNo {
 			f := false
 			opts.Versioning = &f
 		}
-		if v := strings.TrimSpace(strings.ToLower(m.storage.createUniformAccess)); v == "yes" {
+		if v := strings.TrimSpace(strings.ToLower(m.storage.createUniformAccess)); v == optionYes {
 			t := true
 			opts.UniformBucketLevelAccess = &t
-		} else if v == "no" {
+		} else if v == optionNo {
 			f := false
 			opts.UniformBucketLevelAccess = &f
 		}
@@ -255,13 +256,13 @@ func (m *Model) syncTextInputToField() {
 	switch m.overlay {
 	case OverlayCreateBucket:
 		// Selector fields manage their own state — only sync free-text fields from textinput.
-		if m.getCreateFieldOptions(m.storage.createField) == nil {
-			m.setCreateFieldValue(m.storage.createField, m.textInput.Value())
+		if m.getCreateFieldOptions(m.storage.createFieldIndex) == nil {
+			m.setCreateFieldValue(m.storage.createFieldIndex, m.textInput.Value())
 		}
 	case OverlayDeleteConfirm:
 		m.storage.deleteInput = m.textInput.Value()
 	case OverlayConfigAdd:
-		if m.storage.createField == 0 {
+		if m.storage.createFieldIndex == 0 {
 			m.config.editKey = m.textInput.Value()
 		} else {
 			m.config.editValue = m.textInput.Value()
@@ -279,22 +280,22 @@ func (m *Model) syncTextInputToField() {
 
 // loadFieldIntoTextInput sets the textinput value to the current create-bucket field.
 func (m *Model) loadFieldIntoTextInput() {
-	m.textInput.SetValue(m.getCreateFieldValue(m.storage.createField))
+	m.textInput.SetValue(m.getCreateFieldValue(m.storage.createFieldIndex))
 	m.textInput.Focus()
 }
 
 // getCreateFieldOptions returns the valid options for a selector field, or nil for free-text fields.
 func (m *Model) getCreateFieldOptions(field int) []string {
 	switch field {
-	case 1:
+	case createFieldProvider:
 		return m.storage.availableProviders
-	case 3:
+	case createFieldStorageClass:
 		return storageClassOptions
-	case 5:
+	case createFieldVersioning:
 		return versioningOptions
-	case 6:
+	case createFieldUniformAccess:
 		return uniformAccessOptions
-	case 7:
+	case createFieldPublicAccessPrevention:
 		return publicAccessPreventionOptions
 	default:
 		return nil
@@ -304,21 +305,21 @@ func (m *Model) getCreateFieldOptions(field int) []string {
 // getCreateFieldValue returns the current value of a create-bucket form field.
 func (m *Model) getCreateFieldValue(field int) string {
 	switch field {
-	case 0:
+	case createFieldName:
 		return m.storage.createName
-	case 1:
+	case createFieldProvider:
 		return m.storage.createProvider
-	case 2:
+	case createFieldLocation:
 		return m.storage.createLocation
-	case 3:
+	case createFieldStorageClass:
 		return m.storage.createStorageClass
-	case 4:
+	case createFieldLabels:
 		return m.storage.createLabels
-	case 5:
+	case createFieldVersioning:
 		return m.storage.createVersioning
-	case 6:
+	case createFieldUniformAccess:
 		return m.storage.createUniformAccess
-	case 7:
+	case createFieldPublicAccessPrevention:
 		return m.storage.createPublicAccessPrevention
 	default:
 		return ""
@@ -328,27 +329,24 @@ func (m *Model) getCreateFieldValue(field int) string {
 // setCreateFieldValue sets the value of a create-bucket form field.
 func (m *Model) setCreateFieldValue(field int, value string) {
 	switch field {
-	case 0:
+	case createFieldName:
 		m.storage.createName = value
-	case 1:
+	case createFieldProvider:
 		m.storage.createProvider = value
-	case 2:
+	case createFieldLocation:
 		m.storage.createLocation = value
-	case 3:
+	case createFieldStorageClass:
 		m.storage.createStorageClass = value
-	case 4:
+	case createFieldLabels:
 		m.storage.createLabels = value
-	case 5:
+	case createFieldVersioning:
 		m.storage.createVersioning = value
-	case 6:
+	case createFieldUniformAccess:
 		m.storage.createUniformAccess = value
-	case 7:
+	case createFieldPublicAccessPrevention:
 		m.storage.createPublicAccessPrevention = value
 	}
 }
-
-// uniformAccessFieldIndex is the index of the Uniform Access field in the create-bucket form.
-const uniformAccessFieldIndex = 6
 
 // nextVisibleCreateField returns the next visible field index, skipping hidden fields.
 func (m *Model) nextVisibleCreateField(current int) int {
@@ -367,7 +365,7 @@ func (m *Model) updateCreateHiddenFields() {
 		m.storage.createHiddenFields = make(map[int]bool)
 	}
 	// Uniform Access is GCP-only
-	m.storage.createHiddenFields[uniformAccessFieldIndex] = strings.ToLower(m.storage.createProvider) != "gcp"
+	m.storage.createHiddenFields[createFieldUniformAccess] = strings.ToLower(m.storage.createProvider) != "gcp"
 }
 
 // cycleOption advances or retreats through a list of options based on key direction.
@@ -502,7 +500,7 @@ func (m *Model) handleStorageListKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		} else {
 			m.storage.createProvider = ""
 		}
-		m.storage.createField = 0
+		m.storage.createFieldIndex = 0
 		m.updateCreateHiddenFields()
 		m.textInput.SetValue("")
 		m.textInput.Focus()
@@ -619,8 +617,8 @@ func (m *Model) handleObjectListKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				if objIdx < len(m.storage.objects.Objects) {
 					obj := m.storage.objects.Objects[objIdx]
 					m.storage.downloadingKey = obj.Key
-					m.storage.downloadDir = "./"
-					m.textInput.SetValue("./")
+					m.storage.downloadDir = defaultDownloadDir
+					m.textInput.SetValue(defaultDownloadDir)
 					m.textInput.Focus()
 					m.overlay = OverlayDownloadPath
 				}
@@ -772,7 +770,7 @@ func (m *Model) handleConfigListKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.config.editKey = ""
 		m.config.editValue = ""
 		m.config.isNewEntry = true
-		m.storage.createField = 0 // reuse for config add field index
+		m.storage.createFieldIndex = 0 // reuse for config add field index
 		m.textInput.SetValue("")
 		m.textInput.Focus()
 		m.overlay = OverlayConfigAdd

@@ -202,11 +202,11 @@ type policyDocument struct {
 }
 
 type policyStatement struct {
-	Effect    string      `json:"Effect"`
-	Principal interface{} `json:"Principal"` // Can be string ("*") or map
-	Action    interface{} `json:"Action"`    // Can be string or []string
-	Resource  interface{} `json:"Resource"`  // Can be string or []string
-	Condition interface{} `json:"Condition,omitempty"`
+	Effect    string `json:"Effect"`
+	Principal any    `json:"Principal"` // Can be string ("*") or map
+	Action    any    `json:"Action"`    // Can be string or []string
+	Resource  any    `json:"Resource"`  // Can be string or []string
+	Condition any    `json:"Condition,omitempty"`
 }
 
 func parseBucketPolicy(policyJSON string) ([]storage.PolicyStatement, error) {
@@ -234,14 +234,14 @@ func parseBucketPolicy(policyJSON string) ([]storage.PolicyStatement, error) {
 }
 
 // flattenStringOrSlice handles JSON fields that can be a string, a []string, or a map with a key like "AWS".
-func flattenStringOrSlice(v interface{}) []string {
+func flattenStringOrSlice(v any) []string {
 	if v == nil {
 		return nil
 	}
 	switch val := v.(type) {
 	case string:
 		return []string{val}
-	case []interface{}:
+	case []any:
 		result := make([]string, 0, len(val))
 		for _, item := range val {
 			if s, ok := item.(string); ok {
@@ -249,7 +249,7 @@ func flattenStringOrSlice(v interface{}) []string {
 			}
 		}
 		return result
-	case map[string]interface{}:
+	case map[string]any:
 		// Handle {"AWS": "arn:..."} or {"AWS": ["arn:...", "arn:..."]}
 		var result []string
 		for _, sub := range val {
@@ -262,17 +262,17 @@ func flattenStringOrSlice(v interface{}) []string {
 }
 
 // flattenConditions parses the Condition block of an IAM policy statement.
-func flattenConditions(v interface{}) map[string]map[string][]string {
+func flattenConditions(v any) map[string]map[string][]string {
 	if v == nil {
 		return nil
 	}
-	raw, ok := v.(map[string]interface{})
+	raw, ok := v.(map[string]any)
 	if !ok {
 		return nil
 	}
 	result := make(map[string]map[string][]string, len(raw))
 	for operator, keysRaw := range raw {
-		keys, ok := keysRaw.(map[string]interface{})
+		keys, ok := keysRaw.(map[string]any)
 		if !ok {
 			continue
 		}

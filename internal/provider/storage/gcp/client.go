@@ -18,19 +18,14 @@ import (
 
 func init() {
 	registry.RegisterProvider("gcp", registry.Registration[storage.Storage]{
-		ConfigCheck: isConfigured,
+		ConfigCheck: config.IsGCPConfigured,
 		Initializer: initialize,
 	})
 }
 
-// Checks if the GCP configuration block is present and the project ID is set
-func isConfigured(cfg *config.Config) bool {
-	return cfg.GCP != nil && cfg.GCP.Project != ""
-}
-
 // Initializes the GCP storage client from the configuration
 func initialize(ctx context.Context, cfg *config.Config, logger *slog.Logger) (storage.Storage, error) {
-	if !isConfigured(cfg) {
+	if !config.IsGCPConfigured(cfg) {
 		return nil, fmt.Errorf("GCP configuration missing or incomplete")
 	}
 	return NewGCPStorage(ctx, cfg.GCP.Project, logger)

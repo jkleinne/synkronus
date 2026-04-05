@@ -7,12 +7,15 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"synkronus/internal/config"
 	"synkronus/internal/flags"
 	"synkronus/internal/output"
 	"synkronus/internal/tui"
 
 	"github.com/spf13/cobra"
 )
+
+const debugLogFileName = "debug.log"
 
 // Creates the root command, defines global flags, and sets up the initialization hook
 func newRootCmd() *cobra.Command {
@@ -62,7 +65,7 @@ manage your infrastructure from one place.`,
 			origStderr := os.Stderr
 			var logWriter io.Writer = io.Discard
 			if debugMode {
-				logPath := filepath.Join(os.Getenv("HOME"), ".config", "synkronus", "debug.log")
+				logPath := filepath.Join(os.Getenv("HOME"), ".config", config.ConfigDirName, debugLogFileName)
 				if f, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0600); err == nil {
 					defer f.Close()
 					logWriter = f
@@ -94,7 +97,7 @@ manage your infrastructure from one place.`,
 
 	// Define persistent flags (available to all subcommands)
 	cmd.PersistentFlags().BoolVarP(&debugMode, flags.Debug, flags.DebugShort, false, "Enable verbose debug logging")
-	cmd.PersistentFlags().StringVarP(&outputFormatStr, flags.Output, flags.OutputShort, "table", "Output format: table, json, yaml")
+	cmd.PersistentFlags().StringVarP(&outputFormatStr, flags.Output, flags.OutputShort, string(output.FormatTable), "Output format: table, json, yaml")
 
 	// Add subcommands
 	cmd.AddCommand(newStorageCmd())

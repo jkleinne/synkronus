@@ -75,7 +75,7 @@ func buildBucketAccessControlSection(b storage.Bucket) KeyValueSection {
 
 	papValue := b.PublicAccessPrevention
 	if papValue == "" {
-		papValue = "unspecified"
+		papValue = storageClassUnspecified
 	}
 	entries = append(entries, KeyValue{Key: "Public Access Prevention", Value: papValue})
 
@@ -299,7 +299,7 @@ func RenderCreateBucketForm(fields CreateBucketFormFields, activeField int, text
 
 // RenderDeleteConfirm renders the typed-confirmation delete modal content.
 // resourceName is the bucket name or object key the user must type to confirm.
-func RenderDeleteConfirm(resourceName, currentInput, textInputView string) string {
+func RenderDeleteConfirm(resourceName, textInputView string) string {
 	warning := TextSecondaryStyle.Render("Type ") +
 		SectionHeaderStyle.Render("'"+resourceName+"'") +
 		TextSecondaryStyle.Render(" to confirm deletion:")
@@ -308,6 +308,9 @@ func RenderDeleteConfirm(resourceName, currentInput, textInputView string) strin
 
 // directoryEntry marks a common prefix as a virtual directory row in the object table.
 const directoryEntry = "(DIR)"
+
+// storageClassUnspecified is displayed when the bucket has no explicit storage class set.
+const storageClassUnspecified = "unspecified"
 
 // formatTimestamp renders a time.Time as a short date-time string.
 // Zero times are returned as "N/A".

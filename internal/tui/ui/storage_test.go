@@ -241,14 +241,14 @@ func TestRenderCreateBucketFormSelectorUnset(t *testing.T) {
 }
 
 func TestRenderDeleteConfirm(t *testing.T) {
-	result := RenderDeleteConfirm("my-bucket", "", "[cursor]")
+	result := RenderDeleteConfirm("my-bucket", "[cursor]")
 	if !strings.Contains(result, "my-bucket") {
 		t.Error("delete confirm should show bucket name")
 	}
 }
 
 func TestRenderDeleteConfirmShowsTextInput(t *testing.T) {
-	result := RenderDeleteConfirm("my-bucket", "my-buc", "[cursor]")
+	result := RenderDeleteConfirm("my-bucket", "[cursor]")
 	if !strings.Contains(result, "[cursor]") {
 		t.Error("delete confirm should render the text input view")
 	}

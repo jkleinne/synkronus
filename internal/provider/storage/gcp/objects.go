@@ -36,7 +36,7 @@ func (g *GCPStorage) ListObjects(ctx context.Context, bucketName string, prefix 
 
 	for {
 		attrs, err := it.Next()
-		if err == iterator.Done {
+		if errors.Is(err, iterator.Done) {
 			break
 		}
 		if err != nil {
@@ -141,23 +141,23 @@ func (g *GCPStorage) DownloadObject(ctx context.Context, bucketName string, obje
 func (g *GCPStorage) UploadObject(ctx context.Context, opts storage.UploadObjectOptions, reader io.Reader) error {
 	g.logger.Debug("Starting GCP UploadObject operation", "bucket", opts.BucketName, "key", opts.ObjectKey)
 
-	w := g.client.Bucket(opts.BucketName).Object(opts.ObjectKey).NewWriter(ctx)
+	writer := g.client.Bucket(opts.BucketName).Object(opts.ObjectKey).NewWriter(ctx)
 
 	contentType := opts.ContentType
 	if contentType == "" {
 		contentType = shared.DetectContentType(opts.ObjectKey)
 	}
 	if contentType != "" {
-		w.ContentType = contentType
+		writer.ContentType = contentType
 	}
-	w.Metadata = opts.Metadata
+	writer.Metadata = opts.Metadata
 
-	if _, err := io.Copy(w, reader); err != nil {
-		w.Close()
+	if _, err := io.Copy(writer, reader); err != nil {
+		writer.Close()
 		return fmt.Errorf("uploading object %s to bucket %s: %w", opts.ObjectKey, opts.BucketName, err)
 	}
 
-	if err := w.Close(); err != nil {
+	if err := writer.Close(); err != nil {
 		return fmt.Errorf("uploading object %s to bucket %s: %w", opts.ObjectKey, opts.BucketName, err)
 	}
 

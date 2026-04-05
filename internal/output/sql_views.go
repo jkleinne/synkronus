@@ -92,19 +92,5 @@ func (v InstanceDetailView) renderOverview() string {
 }
 
 func (v InstanceDetailView) renderLabels() string {
-	if len(v.Labels) == 0 {
-		return ""
-	}
-
-	var sb strings.Builder
-	sb.WriteString(FormatSectionTitle("Labels"))
-	sb.WriteString("\n")
-	table := NewTable([]string{"Key", "Value"})
-	for k, val := range v.Labels {
-		table.AddRow([]string{k, val})
-	}
-	sb.WriteString(table.String())
-	sb.WriteString("\n\n")
-
-	return sb.String()
+	return renderLabelsSection(v.Labels)
 }

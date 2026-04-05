@@ -3,8 +3,10 @@ package main
 
 import (
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
+	synkconfig "synkronus/internal/config"
 
 	"github.com/spf13/cobra"
 )
@@ -97,16 +99,10 @@ func newConfigCmd() *cobra.Command {
 			}
 
 			settings := app.ConfigManager.GetAllSettings()
-			flattenedSettings := flattenConfigMap(settings)
-
-			var displaySettings = make(map[string]interface{})
-			for k, v := range flattenedSettings {
-				if s, ok := v.(string); ok {
-					if s != "" {
-						displaySettings[k] = v
-					}
-				} else if v != nil {
-					displaySettings[k] = v
+			displaySettings := synkconfig.FlattenSettings(settings)
+			for k, v := range displaySettings {
+				if v == "" {
+					delete(displaySettings, k)
 				}
 			}
 
@@ -115,15 +111,11 @@ func newConfigCmd() *cobra.Command {
 				return nil
 			}
 
-			keys := make([]string, 0, len(displaySettings))
-			for k := range displaySettings {
-				keys = append(keys, k)
-			}
-			slices.Sort(keys)
+			keys := slices.Sorted(maps.Keys(displaySettings))
 
 			fmt.Println("Current configuration:")
 			for _, k := range keys {
-				fmt.Printf("  %s = %v\n", k, displaySettings[k])
+				fmt.Printf("  %s = %s\n", k, displaySettings[k])
 			}
 
 			return nil
@@ -134,28 +126,3 @@ func newConfigCmd() *cobra.Command {
 	return configCmd
 }
 
-// Recursively flattens a nested map (like Viper's config) into a flat map with dot notation keys
-func flattenConfigMap(nestedMap map[string]interface{}) map[string]interface{} {
-	flattenedMap := make(map[string]interface{})
-
-	var flatten func(string, interface{})
-	flatten = func(prefix string, value interface{}) {
-		switch v := value.(type) {
-		case map[string]interface{}:
-			for k, val := range v {
-				newPrefix := k
-				if prefix != "" {
-					newPrefix = prefix + "." + k
-				}
-				flatten(newPrefix, val)
-			}
-		default:
-			if prefix != "" {
-				flattenedMap[prefix] = value
-			}
-		}
-	}
-
-	flatten("", nestedMap)
-	return flattenedMap
-}

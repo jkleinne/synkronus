@@ -37,6 +37,12 @@ type Config struct {
 	AWS *AWSConfig `json:"aws,omitempty" validate:"omitempty"`
 }
 
+// IsGCPConfigured returns true if the GCP configuration block is present
+// and the project ID is set. Used by GCP provider registration callbacks.
+func IsGCPConfigured(cfg *Config) bool {
+	return cfg.GCP != nil && cfg.GCP.Project != ""
+}
+
 type ConfigManager struct {
 	v         *viper.Viper
 	validator *validator.Validate
@@ -59,7 +65,8 @@ func NewConfigManager() (*ConfigManager, error) {
 
 	if err := v.ReadInConfig(); err != nil {
 		// It's okay if the config file doesn't exist (first run), but other errors (e.g., parsing, permissions) must be reported
-		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
+		var notFound viper.ConfigFileNotFoundError
+		if !errors.As(err, &notFound) {
 			return nil, fmt.Errorf("error reading config file: %w", err)
 		}
 	}
@@ -162,7 +169,7 @@ func (cm *ConfigManager) DeleteValue(key string) (bool, error) {
 	return true, nil
 }
 
-func (cm *ConfigManager) GetAllSettings() map[string]interface{} {
+func (cm *ConfigManager) GetAllSettings() map[string]any {
 	return cm.v.AllSettings()
 }
 
@@ -215,7 +222,7 @@ func (cm *ConfigManager) RemoveProvider(providerName string) (bool, error) {
 }
 
 // marshalJSON encodes settings as indented JSON.
-func marshalJSON(settings map[string]interface{}) ([]byte, error) {
+func marshalJSON(settings map[string]any) ([]byte, error) {
 	return json.MarshalIndent(settings, "", "  ")
 }
 
@@ -229,7 +236,7 @@ func (cm *ConfigManager) getPreferredConfigPath() (string, error) {
 	return filepath.Join(configDir, ConfigFileName), nil
 }
 
-func (cm *ConfigManager) unmarshalStrict(target interface{}) error {
+func (cm *ConfigManager) unmarshalStrict(target any) error {
 	decoder, err := mapstructure.NewDecoder(&mapstructure.DecoderConfig{
 		Result:      target,
 		ErrorUnused: true,

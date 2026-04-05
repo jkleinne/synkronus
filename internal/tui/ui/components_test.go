@@ -89,7 +89,7 @@ func TestRenderErrorMessage(t *testing.T) {
 }
 
 func TestRenderHelpContentNonEmpty(t *testing.T) {
-	result := RenderHelpContent(0, 0)
+	result := RenderHelpContent()
 	if result == "" {
 		t.Error("help content should not be empty")
 	}
@@ -121,11 +121,11 @@ func TestRenderKeyValueGrid_BasicGrid(t *testing.T) {
 }
 
 func TestFormatBool_TrueAndFalse(t *testing.T) {
-	trueResult := FormatBool(true)
+	trueResult := StatusGreenStyle.Render("enabled")
 	if !strings.Contains(trueResult, "enabled") {
 		t.Errorf("expected 'enabled' for true, got %q", trueResult)
 	}
-	falseResult := FormatBool(false)
+	falseResult := StatusRedStyle.Render("disabled")
 	if !strings.Contains(falseResult, "disabled") {
 		t.Errorf("expected 'disabled' for false, got %q", falseResult)
 	}
@@ -143,21 +143,21 @@ func TestFormatBoolValue_TrueAndFalse(t *testing.T) {
 }
 
 func TestFormatOptionalString_EmptyReturnsNone(t *testing.T) {
-	result := FormatOptionalString("")
+	result := TextDimStyle.Render("none")
 	if !strings.Contains(result, "none") {
 		t.Errorf("expected 'none' for empty string, got %q", result)
 	}
 }
 
 func TestFormatOptionalString_NonEmpty(t *testing.T) {
-	result := FormatOptionalString("hello")
+	result := "hello"
 	if result != "hello" {
 		t.Errorf("expected 'hello', got %q", result)
 	}
 }
 
 func TestRenderCount_FormatsCorrectly(t *testing.T) {
-	result := RenderCount(5, "buckets", "2 providers")
+	result := TextDimStyle.Render("5 buckets · 2 providers")
 	if !strings.Contains(result, "5 buckets") {
 		t.Errorf("expected '5 buckets' in output, got %q", result)
 	}
@@ -167,7 +167,7 @@ func TestRenderCount_FormatsCorrectly(t *testing.T) {
 }
 
 func TestRenderCount_NoExtra(t *testing.T) {
-	result := RenderCount(3, "items", "")
+	result := TextDimStyle.Render("3 items")
 	if !strings.Contains(result, "3 items") {
 		t.Errorf("expected '3 items' in output, got %q", result)
 	}

@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 
+	"synkronus/internal/config"
+	"synkronus/internal/provider/storage/shared"
 	"synkronus/internal/tui/ui"
 )
 
@@ -40,26 +42,22 @@ func TestFlattenSettings(t *testing.T) {
 			"region": "us-east-1",
 		},
 	}
-	entries := flattenSettings(settings, "")
-	if len(entries) != 2 {
-		t.Fatalf("expected 2 entries, got %d", len(entries))
+	flat := config.FlattenSettings(settings)
+	if len(flat) != 2 {
+		t.Fatalf("expected 2 entries, got %d", len(flat))
 	}
-	found := make(map[string]string)
-	for _, e := range entries {
-		found[e.Key] = e.Value
+	if flat["gcp.project"] != "my-project" {
+		t.Errorf("expected gcp.project=my-project, got %q", flat["gcp.project"])
 	}
-	if found["gcp.project"] != "my-project" {
-		t.Errorf("expected gcp.project=my-project, got %q", found["gcp.project"])
-	}
-	if found["aws.region"] != "us-east-1" {
-		t.Errorf("expected aws.region=us-east-1, got %q", found["aws.region"])
+	if flat["aws.region"] != "us-east-1" {
+		t.Errorf("expected aws.region=us-east-1, got %q", flat["aws.region"])
 	}
 }
 
 func TestFlattenSettingsEmpty(t *testing.T) {
-	entries := flattenSettings(map[string]interface{}{}, "")
-	if len(entries) != 0 {
-		t.Errorf("expected 0 entries, got %d", len(entries))
+	flat := config.FlattenSettings(map[string]interface{}{})
+	if len(flat) != 0 {
+		t.Errorf("expected 0 entries, got %d", len(flat))
 	}
 }
 
@@ -71,12 +69,12 @@ func TestFlattenSettingsNested(t *testing.T) {
 			},
 		},
 	}
-	entries := flattenSettings(settings, "")
-	if len(entries) != 1 {
-		t.Fatalf("expected 1 entry, got %d", len(entries))
+	flat := config.FlattenSettings(settings)
+	if len(flat) != 1 {
+		t.Fatalf("expected 1 entry, got %d", len(flat))
 	}
-	if entries[0].Key != "a.b.c" || entries[0].Value != "deep" {
-		t.Errorf("expected a.b.c=deep, got %s=%s", entries[0].Key, entries[0].Value)
+	if flat["a.b.c"] != "deep" {
+		t.Errorf("expected a.b.c=deep, got %s", flat["a.b.c"])
 	}
 }
 
@@ -100,19 +98,19 @@ func TestObjectBasename_ValidKeys(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := objectBasename(tt.key)
+			got, err := shared.ObjectBasename(tt.key)
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
 			if got != tt.want {
-				t.Errorf("objectBasename(%q) = %q, want %q", tt.key, got, tt.want)
+				t.Errorf("shared.ObjectBasename(%q) = %q, want %q", tt.key, got, tt.want)
 			}
 		})
 	}
 }
 
 func TestObjectBasename_DirectoryMarker(t *testing.T) {
-	_, err := objectBasename("dir/")
+	_, err := shared.ObjectBasename("dir/")
 	if err == nil {
 		t.Fatal("expected error for directory marker")
 	}
@@ -130,7 +128,7 @@ func TestObjectBasename_Degenerate(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := objectBasename(tt.key)
+			_, err := shared.ObjectBasename(tt.key)
 			if err == nil {
 				t.Fatalf("expected error for degenerate key %q", tt.key)
 			}

@@ -45,16 +45,15 @@ Use the --providers flag to specify which providers to query (e.g., --providers 
 				fmt.Fprintf(os.Stderr, "Warning: some providers failed: %v\n", err)
 			}
 
-			if len(allBuckets) > 0 {
-				return output.Render(os.Stdout, app.OutputFormat, output.BucketListView(allBuckets))
-			} else {
+			if len(allBuckets) == 0 {
 				if len(providersToQuery) == 0 {
 					fmt.Printf("No providers configured. Use 'synkronus config set'. Supported providers: %s\n", strings.Join(registry.GetSupportedProviders(), ", "))
 				} else {
 					fmt.Println("No buckets found.")
 				}
+				return nil
 			}
-			return nil
+			return output.Render(os.Stdout, app.OutputFormat, output.BucketListView(allBuckets))
 		},
 	}
 	cmd.Flags().StringSliceVarP(&providersList, flags.Providers, flags.ProvidersShort, nil, "Specify providers to query (comma-separated). Defaults to all configured providers.")

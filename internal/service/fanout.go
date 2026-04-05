@@ -28,16 +28,16 @@ func concurrentFanOut[C ProviderClient, T any](
 	var mu sync.Mutex
 	var wg sync.WaitGroup
 
-	for _, pName := range providerNames {
+	for _, providerName := range providerNames {
 		wg.Add(1)
-		go func(pName string) {
+		go func(providerName string) {
 			defer wg.Done()
 
-			client, err := getClient(ctx, pName)
+			client, err := getClient(ctx, providerName)
 			if err != nil {
-				logger.Error("Failed to initialize provider client", "provider", pName, "error", err)
+				logger.Error("Failed to initialize provider client", "provider", providerName, "error", err)
 				mu.Lock()
-				errs = append(errs, fmt.Errorf("provider %s: %w", pName, err))
+				errs = append(errs, fmt.Errorf("provider %s: %w", providerName, err))
 				mu.Unlock()
 				return
 			}
@@ -45,9 +45,9 @@ func concurrentFanOut[C ProviderClient, T any](
 
 			results, err := listFn(ctx, client)
 			if err != nil {
-				logger.Error("Failed to list from provider", "provider", pName, "error", err)
+				logger.Error("Failed to list from provider", "provider", providerName, "error", err)
 				mu.Lock()
-				errs = append(errs, fmt.Errorf("provider %s: %w", pName, err))
+				errs = append(errs, fmt.Errorf("provider %s: %w", providerName, err))
 				mu.Unlock()
 				return
 			}
@@ -56,8 +56,8 @@ func concurrentFanOut[C ProviderClient, T any](
 			allResults = append(allResults, results...)
 			mu.Unlock()
 
-			logger.Debug("Successfully fetched results", "provider", pName, "count", len(results))
-		}(pName)
+			logger.Debug("Successfully fetched results", "provider", providerName, "count", len(results))
+		}(providerName)
 	}
 
 	wg.Wait()

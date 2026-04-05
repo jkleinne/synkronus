@@ -16,6 +16,13 @@ import (
 
 const metricTimeWindow = 72 * time.Hour
 
+const (
+	storageTotalBytesMetric  = "storage.googleapis.com/storage/v2/total_bytes"
+	metricGroupByBucket      = "resource.labels.bucket_name"
+	metricBucketLabelKey     = "bucket_name"
+	gcpProjectResourceFormat = "projects/%s"
+)
+
 // ErrMetricsNotFound indicates that the usage metrics could not be found within the queried time range
 // This often happens for new buckets that haven't reported metrics yet
 var ErrMetricsNotFound = errors.New("usage metrics not found in the monitoring window")
@@ -27,7 +34,7 @@ func (g *GCPStorage) getAllBucketUsages(ctx context.Context) (map[string]int64, 
 		return nil, fmt.Errorf("failed to create monitoring client: %w", err)
 	}
 
-	filter := `metric.type="storage.googleapis.com/storage/v2/total_bytes"`
+	filter := fmt.Sprintf(`metric.type="%s"`, storageTotalBytesMetric)
 	req := buildMetricsRequest(g.projectID, filter)
 
 	usageMap := make(map[string]int64)
@@ -35,14 +42,14 @@ func (g *GCPStorage) getAllBucketUsages(ctx context.Context) (map[string]int64, 
 
 	for {
 		resp, err := it.Next()
-		if err == iterator.Done {
+		if errors.Is(err, iterator.Done) {
 			break
 		}
 		if err != nil {
 			return nil, fmt.Errorf("error getting metric data: %w", err)
 		}
 
-		bucketName, ok := resp.GetResource().GetLabels()["bucket_name"]
+		bucketName, ok := resp.GetResource().GetLabels()[metricBucketLabelKey]
 		if !ok {
 			g.logger.Warn("Aggregated metric response missing 'bucket_name' label")
 			continue
@@ -65,7 +72,7 @@ func (g *GCPStorage) getSingleBucketUsage(ctx context.Context, bucketName string
 		return -1, fmt.Errorf("failed to create monitoring client: %w", err)
 	}
 
-	filter := fmt.Sprintf(`metric.type="storage.googleapis.com/storage/v2/total_bytes" AND resource.labels.bucket_name="%s"`, bucketName)
+	filter := fmt.Sprintf(`metric.type="%s" AND %s="%s"`, storageTotalBytesMetric, metricGroupByBucket, bucketName)
 	req := buildMetricsRequest(g.projectID, filter)
 
 	it := client.ListTimeSeries(ctx, req)
@@ -74,7 +81,7 @@ func (g *GCPStorage) getSingleBucketUsage(ctx context.Context, bucketName string
 	// we expect exactly one time series in the response
 	resp, err := it.Next()
 
-	if err == iterator.Done {
+	if errors.Is(err, iterator.Done) {
 		return -1, ErrMetricsNotFound
 	}
 	if err != nil {
@@ -99,7 +106,7 @@ func buildMetricsRequest(projectID, filter string) *monitoringpb.ListTimeSeriesR
 	startTime := endTime.Add(-metricTimeWindow)
 
 	return &monitoringpb.ListTimeSeriesRequest{
-		Name:   fmt.Sprintf("projects/%s", projectID),
+		Name:   fmt.Sprintf(gcpProjectResourceFormat, projectID),
 		Filter: filter,
 		Interval: &monitoringpb.TimeInterval{
 			StartTime: timestamppb.New(startTime),
@@ -109,7 +116,7 @@ func buildMetricsRequest(projectID, filter string) *monitoringpb.ListTimeSeriesR
 			AlignmentPeriod:    durationpb.New(metricTimeWindow),
 			PerSeriesAligner:   monitoringpb.Aggregation_ALIGN_MEAN,
 			CrossSeriesReducer: monitoringpb.Aggregation_REDUCE_SUM,
-			GroupByFields:      []string{"resource.labels.bucket_name"},
+			GroupByFields:      []string{metricGroupByBucket},
 		},
 	}
 }
