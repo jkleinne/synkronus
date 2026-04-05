@@ -56,26 +56,26 @@ func (s *StorageService) DescribeBucket(ctx context.Context, bucketName, provide
 	bucket, err := client.DescribeBucket(ctx, bucketName)
 	if err != nil {
 		s.logger.Error("Failed to describe bucket", "bucket", bucketName, "provider", providerName, "error", err)
-		return storage.Bucket{}, err
+		return storage.Bucket{}, fmt.Errorf("describing bucket %q on %s: %w", bucketName, providerName, err)
 	}
 	return bucket, nil
 }
 
-func (s *StorageService) CreateBucket(ctx context.Context, opts storage.CreateBucketOptions, providerName string) error {
+func (s *StorageService) CreateBucket(ctx context.Context, opts storage.CreateBucketOptions, providerName string) (storage.CreateBucketResult, error) {
 	s.logger.Debug("Starting CreateBucket operation", "bucket", opts.Name, "provider", providerName, "location", opts.Location)
 
 	client, err := s.getStorageClient(ctx, providerName)
 	if err != nil {
-		return err
+		return storage.CreateBucketResult{}, err
 	}
 	defer client.Close()
 
-	err = client.CreateBucket(ctx, opts)
+	result, err := client.CreateBucket(ctx, opts)
 	if err != nil {
 		s.logger.Error("Failed to create bucket", "bucket", opts.Name, "provider", providerName, "error", err)
-		return err
+		return storage.CreateBucketResult{}, fmt.Errorf("creating bucket %q on %s: %w", opts.Name, providerName, err)
 	}
-	return nil
+	return result, nil
 }
 
 func (s *StorageService) DeleteBucket(ctx context.Context, bucketName, providerName string) error {
@@ -90,7 +90,7 @@ func (s *StorageService) DeleteBucket(ctx context.Context, bucketName, providerN
 	err = client.DeleteBucket(ctx, bucketName)
 	if err != nil {
 		s.logger.Error("Failed to delete bucket", "bucket", bucketName, "provider", providerName, "error", err)
-		return err
+		return fmt.Errorf("deleting bucket %q on %s: %w", bucketName, providerName, err)
 	}
 	return nil
 }
@@ -109,7 +109,7 @@ func (s *StorageService) ListObjects(ctx context.Context, bucketName, providerNa
 	objects, err := client.ListObjects(ctx, bucketName, prefix)
 	if err != nil {
 		s.logger.Error("Failed to list objects", "bucket", bucketName, "provider", providerName, "error", err)
-		return storage.ObjectList{}, err
+		return storage.ObjectList{}, fmt.Errorf("listing objects in bucket %q on %s: %w", bucketName, providerName, err)
 	}
 	return objects, nil
 }
@@ -126,7 +126,7 @@ func (s *StorageService) DescribeObject(ctx context.Context, bucketName, objectK
 	object, err := client.DescribeObject(ctx, bucketName, objectKey)
 	if err != nil {
 		s.logger.Error("Failed to describe object", "bucket", bucketName, "object", objectKey, "provider", providerName, "error", err)
-		return storage.Object{}, err
+		return storage.Object{}, fmt.Errorf("describing object %q in bucket %q on %s: %w", objectKey, bucketName, providerName, err)
 	}
 	return object, nil
 }
@@ -143,7 +143,7 @@ func (s *StorageService) DownloadObject(ctx context.Context, bucketName, objectK
 	if err != nil {
 		client.Close()
 		s.logger.Error("Failed to download object", "bucket", bucketName, "object", objectKey, "provider", providerName, "error", err)
-		return nil, err
+		return nil, fmt.Errorf("downloading object %q from bucket %q on %s: %w", objectKey, bucketName, providerName, err)
 	}
 
 	return &readerWithCleanup{ReadCloser: reader, cleanup: client.Close}, nil
@@ -162,7 +162,7 @@ func (s *StorageService) UploadObject(ctx context.Context, opts storage.UploadOb
 	if err := client.UploadObject(ctx, opts, reader); err != nil {
 		s.logger.Error("Failed to upload object",
 			"bucket", opts.BucketName, "key", opts.ObjectKey, "provider", providerName, "error", err)
-		return err
+		return fmt.Errorf("uploading object %q to bucket %q on %s: %w", opts.ObjectKey, opts.BucketName, providerName, err)
 	}
 	return nil
 }
@@ -180,7 +180,7 @@ func (s *StorageService) DeleteObject(ctx context.Context, bucketName, objectKey
 	if err := client.DeleteObject(ctx, bucketName, objectKey); err != nil {
 		s.logger.Error("Failed to delete object",
 			"bucket", bucketName, "key", objectKey, "provider", providerName, "error", err)
-		return err
+		return fmt.Errorf("deleting object %q from bucket %q on %s: %w", objectKey, bucketName, providerName, err)
 	}
 	return nil
 }
@@ -200,7 +200,7 @@ func (s *StorageService) CopyObject(ctx context.Context, srcBucket, srcKey, dest
 		s.logger.Error("Failed to copy object",
 			"srcBucket", srcBucket, "srcKey", srcKey,
 			"destBucket", destBucket, "destKey", destKey, "provider", providerName, "error", err)
-		return err
+		return fmt.Errorf("copying object %q/%q to %q/%q on %s: %w", srcBucket, srcKey, destBucket, destKey, providerName, err)
 	}
 	return nil
 }
@@ -223,7 +223,7 @@ func (s *StorageService) getStorageClient(ctx context.Context, providerName stri
 	client, err := s.providerFactory.GetStorageProvider(ctx, providerName)
 	if err != nil {
 		s.logger.Error("Failed to initialize provider", "provider", providerName, "error", err)
-		return nil, fmt.Errorf("error initializing provider: %w", err)
+		return nil, fmt.Errorf("initializing storage provider %s: %w", providerName, err)
 	}
 	return client, nil
 }

@@ -31,7 +31,7 @@ func newConfigCmd() *cobra.Command {
 			value := args[1]
 
 			if err := app.ConfigManager.SetValue(key, value); err != nil {
-				return fmt.Errorf("error setting configuration: %v", err)
+				return fmt.Errorf("setting configuration %q: %w", key, err)
 			}
 			fmt.Printf("Configuration set: %s = %s\n", key, value)
 			return nil
@@ -75,7 +75,7 @@ func newConfigCmd() *cobra.Command {
 			deleted, err := app.ConfigManager.DeleteValue(key)
 
 			if err != nil {
-				return fmt.Errorf("error deleting configuration: %v", err)
+				return fmt.Errorf("deleting configuration %q: %w", key, err)
 			}
 
 			if !deleted {

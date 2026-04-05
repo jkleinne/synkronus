@@ -50,7 +50,7 @@ func TestIntegration_BucketLifecycle(t *testing.T) {
 	bucketName := uniqueBucketName(t)
 
 	// Create
-	err := s.CreateBucket(ctx, storage.CreateBucketOptions{
+	_, err := s.CreateBucket(ctx, storage.CreateBucketOptions{
 		Name:     bucketName,
 		Location: "us-east-1",
 	})
@@ -111,7 +111,7 @@ func TestIntegration_CreateBucketWithOptions(t *testing.T) {
 
 	versioning := true
 	pap := storage.PublicAccessPreventionEnforced
-	err := s.CreateBucket(ctx, storage.CreateBucketOptions{
+	_, err := s.CreateBucket(ctx, storage.CreateBucketOptions{
 		Name:                  bucketName,
 		Location:              "us-east-1",
 		Versioning:            &versioning,
@@ -149,7 +149,7 @@ func TestIntegration_ObjectOperations(t *testing.T) {
 	ctx := context.Background()
 	bucketName := uniqueBucketName(t)
 
-	err := s.CreateBucket(ctx, storage.CreateBucketOptions{
+	_, err := s.CreateBucket(ctx, storage.CreateBucketOptions{
 		Name:     bucketName,
 		Location: "us-east-1",
 	})
@@ -230,7 +230,7 @@ func TestIntegration_ListObjects_Empty(t *testing.T) {
 	ctx := context.Background()
 	bucketName := uniqueBucketName(t)
 
-	err := s.CreateBucket(ctx, storage.CreateBucketOptions{
+	_, err := s.CreateBucket(ctx, storage.CreateBucketOptions{
 		Name:     bucketName,
 		Location: "us-east-1",
 	})
@@ -255,7 +255,7 @@ func TestIntegration_UploadObject(t *testing.T) {
 	ctx := context.Background()
 	bucketName := uniqueBucketName(t)
 
-	err := s.CreateBucket(ctx, storage.CreateBucketOptions{
+	_, err := s.CreateBucket(ctx, storage.CreateBucketOptions{
 		Name:     bucketName,
 		Location: "us-east-1",
 	})
@@ -314,7 +314,7 @@ func TestIntegration_DeleteObject(t *testing.T) {
 	ctx := context.Background()
 	bucketName := uniqueBucketName(t)
 
-	err := s.CreateBucket(ctx, storage.CreateBucketOptions{
+	_, err := s.CreateBucket(ctx, storage.CreateBucketOptions{
 		Name:     bucketName,
 		Location: "us-east-1",
 	})
@@ -360,7 +360,7 @@ func TestIntegration_CopyObject(t *testing.T) {
 	dstBucket := uniqueBucketName(t)
 
 	for _, name := range []string{srcBucket, dstBucket} {
-		err := s.CreateBucket(ctx, storage.CreateBucketOptions{
+		_, err := s.CreateBucket(ctx, storage.CreateBucketOptions{
 			Name:     name,
 			Location: "us-east-1",
 		})
@@ -408,5 +408,50 @@ func TestIntegration_CopyObject(t *testing.T) {
 	io.Copy(&buf, reader)
 	if buf.String() != content {
 		t.Errorf("expected content %q, got %q", content, buf.String())
+	}
+}
+
+func TestIntegration_CreateBucketWithOptions_ReturnsNoWarnings(t *testing.T) {
+	s := newLocalStackStorage(t)
+	ctx := context.Background()
+	bucketName := uniqueBucketName(t)
+
+	versioning := true
+	result, err := s.CreateBucket(ctx, storage.CreateBucketOptions{
+		Name:       bucketName,
+		Location:   "us-east-1",
+		Versioning: &versioning,
+		Labels:     map[string]string{"env": "test"},
+	})
+	if err != nil {
+		t.Fatalf("CreateBucket failed: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = s.DeleteBucket(ctx, bucketName)
+	})
+
+	if len(result.Warnings) != 0 {
+		t.Errorf("expected 0 warnings, got %d: %v", len(result.Warnings), result.Warnings)
+	}
+}
+
+func TestIntegration_CreateBucketResult_WarningsField(t *testing.T) {
+	s := newLocalStackStorage(t)
+	ctx := context.Background()
+	bucketName := uniqueBucketName(t)
+
+	result, err := s.CreateBucket(ctx, storage.CreateBucketOptions{
+		Name:     bucketName,
+		Location: "us-east-1",
+	})
+	if err != nil {
+		t.Fatalf("CreateBucket failed: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = s.DeleteBucket(ctx, bucketName)
+	})
+
+	if result.Warnings != nil {
+		t.Errorf("expected nil warnings for basic create, got %v", result.Warnings)
 	}
 }

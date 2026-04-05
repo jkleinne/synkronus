@@ -54,7 +54,7 @@ func (s *SqlService) DescribeInstance(ctx context.Context, instanceName, provide
 	instance, err := client.DescribeInstance(ctx, instanceName)
 	if err != nil {
 		s.logger.Error("Failed to describe SQL instance", "instance", instanceName, "provider", providerName, "error", err)
-		return sql.Instance{}, err
+		return sql.Instance{}, fmt.Errorf("describing SQL instance %q on %s: %w", instanceName, providerName, err)
 	}
 	return instance, nil
 }
@@ -64,7 +64,7 @@ func (s *SqlService) getSqlClient(ctx context.Context, providerName string) (sql
 	client, err := s.providerFactory.GetSqlProvider(ctx, providerName)
 	if err != nil {
 		s.logger.Error("Failed to initialize SQL provider", "provider", providerName, "error", err)
-		return nil, fmt.Errorf("error initializing SQL provider: %w", err)
+		return nil, fmt.Errorf("initializing SQL provider %s: %w", providerName, err)
 	}
 	return client, nil
 }

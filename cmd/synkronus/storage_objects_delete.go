@@ -43,7 +43,7 @@ Confirmation is required by typing the object key, unless the --force flag is us
 			}
 
 			if err := app.StorageService.DeleteObject(cmd.Context(), bucket, objectKey, provider); err != nil {
-				return fmt.Errorf("error deleting object '%s' from bucket '%s' on %s: %w", objectKey, bucket, provider, err)
+				return err
 			}
 
 			fmt.Printf("Object '%s' deleted successfully from bucket '%s' on provider %s.\n", objectKey, bucket, provider)

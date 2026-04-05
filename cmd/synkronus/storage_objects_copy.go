@@ -32,8 +32,7 @@ If --dest-key is omitted, the source key is reused. Same-bucket copy is supporte
 			}
 
 			if err := app.StorageService.CopyObject(cmd.Context(), bucket, srcKey, destBucket, destKey, provider); err != nil {
-				return fmt.Errorf("error copying object '%s' from bucket '%s' to '%s/%s' on %s: %w",
-					srcKey, bucket, destBucket, destKey, provider, err)
+				return err
 			}
 
 			fmt.Printf("Object '%s' copied successfully from bucket '%s' to '%s/%s' on provider %s.\n",

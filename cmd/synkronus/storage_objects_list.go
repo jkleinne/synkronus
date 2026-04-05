@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"os"
 	"synkronus/internal/flags"
 	"synkronus/internal/output"
@@ -27,7 +26,7 @@ Requires the --bucket and --provider flags. Use --prefix to filter the results (
 
 			objectList, err := app.StorageService.ListObjects(cmd.Context(), bucket, provider, prefix)
 			if err != nil {
-				return fmt.Errorf("error listing objects in bucket '%s' on %s: %w", bucket, provider, err)
+				return err
 			}
 
 			return output.Render(os.Stdout, app.OutputFormat, output.ObjectListView{ObjectList: objectList})

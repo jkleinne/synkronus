@@ -1002,7 +1002,11 @@ func (m *Model) handleBucketCreated(msg BucketCreatedMsg) (tea.Model, tea.Cmd) {
 		m.err = msg.Err
 		return m, nil
 	}
-	m.statusMessage = "Bucket created successfully"
+	statusMsg := "Bucket created successfully"
+	if len(msg.Warnings) > 0 {
+		statusMsg += fmt.Sprintf(" (%d warning(s): %s)", len(msg.Warnings), strings.Join(msg.Warnings, "; "))
+	}
+	m.statusMessage = statusMsg
 	m.storage.loading = true
 	return m, tea.Batch(fetchBucketsCmd(m.storageService, m.factory), clearStatusCmd())
 }

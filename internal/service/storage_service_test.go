@@ -66,3 +66,9 @@ type errorCloser struct {
 
 func (e *errorCloser) Read(p []byte) (int, error) { return 0, io.EOF }
 func (e *errorCloser) Close() error               { return e.readErr }
+
+// TODO(error-handling): Add tests verifying that service-layer error wrapping
+// includes operation, resource, and provider context (e.g., "describing bucket
+// %q on %s: %w"). Currently blocked because factory.Factory uses the global
+// provider registry with no test injection support. Error wrapping format was
+// verified by code review on fix/error-handling-gaps branch.

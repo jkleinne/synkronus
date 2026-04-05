@@ -31,7 +31,7 @@ func newDownloadObjectCmd() *cobra.Command {
 
 			reader, err := app.StorageService.DownloadObject(cmd.Context(), bucket, objectKey, provider)
 			if err != nil {
-				return fmt.Errorf("error downloading object '%s' from bucket '%s' on %s: %w", objectKey, bucket, provider, err)
+				return err
 			}
 			defer reader.Close()
 

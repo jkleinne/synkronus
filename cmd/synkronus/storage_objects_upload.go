@@ -32,7 +32,7 @@ func newUploadObjectCmd() *cobra.Command {
 
 			info, err := os.Stat(filePath)
 			if err != nil {
-				return fmt.Errorf("file not found: %s", filePath)
+				return fmt.Errorf("cannot access file %q: %w", filePath, err)
 			}
 			if info.IsDir() {
 				return fmt.Errorf("path is a directory, not a file: %s", filePath)
@@ -44,7 +44,7 @@ func newUploadObjectCmd() *cobra.Command {
 
 			f, err := os.Open(filePath)
 			if err != nil {
-				return fmt.Errorf("error opening file '%s': %w", filePath, err)
+				return fmt.Errorf("opening file %q: %w", filePath, err)
 			}
 			defer f.Close()
 
@@ -56,7 +56,7 @@ func newUploadObjectCmd() *cobra.Command {
 			}
 
 			if err := app.StorageService.UploadObject(cmd.Context(), opts, provider, f); err != nil {
-				return fmt.Errorf("error uploading object '%s' to bucket '%s' on %s: %w", objectKey, bucket, provider, err)
+				return err
 			}
 
 			fmt.Printf("Object '%s' uploaded successfully to bucket '%s' on provider %s.\n", objectKey, bucket, provider)

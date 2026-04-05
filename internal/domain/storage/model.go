@@ -198,6 +198,13 @@ type CreateBucketOptions struct {
 	PublicAccessPrevention   *string // "enforced", "inherited", or nil (provider default)
 }
 
+// CreateBucketResult contains the outcome of a CreateBucket operation.
+// Warnings capture non-fatal failures (e.g., post-create settings that
+// could not be applied after the bucket was successfully created).
+type CreateBucketResult struct {
+	Warnings []string `json:"warnings,omitempty" yaml:"warnings,omitempty"`
+}
+
 // UploadObjectOptions contains the parameters for uploading an object to a storage bucket.
 // ContentType is optional — providers auto-detect from the object key extension if empty.
 type UploadObjectOptions struct {

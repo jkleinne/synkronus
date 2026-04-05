@@ -3,6 +3,7 @@ package tui
 import (
 	"errors"
 	"log/slog"
+	"strings"
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -715,6 +716,27 @@ func TestHandleBucketCreated_Error(t *testing.T) {
 	}
 	if cmd != nil {
 		t.Error("expected nil cmd on error")
+	}
+}
+
+func TestHandleBucketCreated_WithWarnings(t *testing.T) {
+	m := newTestModel()
+	m.storage.loading = true
+
+	msg := BucketCreatedMsg{
+		Err:      nil,
+		Warnings: []string{"failed to set versioning: access denied", "failed to set tags: throttled"},
+	}
+	_, cmd := m.handleBucketCreated(msg)
+
+	if !strings.Contains(m.statusMessage, "2 warning(s)") {
+		t.Errorf("statusMessage = %q, want it to contain '2 warning(s)'", m.statusMessage)
+	}
+	if !strings.Contains(m.statusMessage, "failed to set versioning") {
+		t.Errorf("statusMessage = %q, want it to contain warning detail", m.statusMessage)
+	}
+	if cmd == nil {
+		t.Error("expected non-nil cmd (batch of refetch + clear status)")
 	}
 }
 
