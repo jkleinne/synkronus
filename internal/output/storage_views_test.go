@@ -186,6 +186,43 @@ func TestObjectListView_Empty(t *testing.T) {
 	}
 }
 
+func TestObjectListView_Truncated(t *testing.T) {
+	objectList := storage.ObjectList{
+		BucketName: "big-bucket",
+		Objects: []storage.Object{
+			{Key: "file1.txt", Size: 100, StorageClass: "STANDARD"},
+		},
+		IsTruncated: true,
+	}
+
+	view := ObjectListView{objectList}
+	result := view.RenderTable()
+
+	if !strings.Contains(result, "Results truncated") {
+		t.Errorf("expected truncation note, got:\n%s", result)
+	}
+	if !strings.Contains(result, "--max-results") {
+		t.Errorf("expected --max-results hint, got:\n%s", result)
+	}
+}
+
+func TestObjectListView_NotTruncated(t *testing.T) {
+	objectList := storage.ObjectList{
+		BucketName: "small-bucket",
+		Objects: []storage.Object{
+			{Key: "file1.txt", Size: 100, StorageClass: "STANDARD"},
+		},
+		IsTruncated: false,
+	}
+
+	view := ObjectListView{objectList}
+	result := view.RenderTable()
+
+	if strings.Contains(result, "Results truncated") {
+		t.Errorf("expected no truncation note, got:\n%s", result)
+	}
+}
+
 func TestObjectDetailView_RenderTable(t *testing.T) {
 	object := storage.Object{
 		Key:          "data/report.pdf",
