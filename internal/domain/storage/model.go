@@ -167,17 +167,17 @@ func FormatBytes(bytes int64) string {
 		return fmt.Sprintf("%d B", bytes)
 	}
 
-	div, exp := int64(unit), 0
+	divisor, sizeIndex := int64(unit), 0
 	for n := bytes / unit; n >= unit; n /= unit {
-		div *= unit
-		exp++
+		divisor *= unit
+		sizeIndex++
 	}
 
 	sizes := []string{"KB", "MB", "GB", "TB", "PB", "EB"}
-	if exp >= len(sizes) {
+	if sizeIndex >= len(sizes) {
 		return fmt.Sprintf("%d B", bytes) // Fallback if extremely large
 	}
-	return fmt.Sprintf("%.1f %s", float64(bytes)/float64(div), sizes[exp])
+	return fmt.Sprintf("%.1f %s", float64(bytes)/float64(divisor), sizes[sizeIndex])
 }
 
 // PublicAccessPrevention values for CreateBucketOptions.

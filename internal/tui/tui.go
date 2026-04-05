@@ -90,7 +90,7 @@ type storageState struct {
 	createVersioning             string // "yes"/"no"/""
 	createUniformAccess          string // "yes"/"no"/""
 	createPublicAccessPrevention string // "enforced"/"inherited"/""
-	createField                  int
+	createFieldIndex             int
 	createHiddenFields           map[int]bool
 	deleteInput                  string
 	downloadingKey               string // non-empty when a download is in progress, for spinner text
@@ -130,7 +130,7 @@ func NewModel(deps Deps) Model {
 	s.Spinner = spinner.Dot
 
 	ti := textinput.New()
-	ti.CharLimit = 256
+	ti.CharLimit = textInputCharLimit
 
 	return Model{
 		storageService: deps.StorageService,
@@ -412,7 +412,7 @@ func (m *Model) renderOverlay() string {
 				SelectorFields:         selectorFields,
 				HiddenFields:           m.storage.createHiddenFields,
 			},
-			m.storage.createField,
+			m.storage.createFieldIndex,
 			m.textInput.View(),
 		)
 		return ui.RenderModal("Create Bucket", content, m.width, m.height)
@@ -438,7 +438,7 @@ func (m *Model) renderOverlay() string {
 			ui.TextDimStyle.Render("Value:"),
 			ui.TextSecondaryStyle.Render(m.config.editValue),
 		)
-		if m.config.isNewEntry && m.storage.createField == 1 {
+		if m.config.isNewEntry && m.storage.createFieldIndex == 1 {
 			// Second field focused: show key as static, value as input
 			content = fmt.Sprintf(
 				"%s %s\n%s %s",

@@ -2,6 +2,10 @@ package output
 
 import "strings"
 
+// headerBorderPadding is the number of extra characters added on each side of the
+// title text in FormatHeaderSection, so the border extends visibly beyond the text.
+const headerBorderPadding = 30
+
 // Table renders data as a bordered ASCII table.
 type Table struct {
 	Headers      []string
@@ -81,7 +85,7 @@ func (t *Table) writeBorder(sb *strings.Builder) {
 // FormatHeaderSection formats a prominent section header with a title.
 func FormatHeaderSection(title string) string {
 	var sb strings.Builder
-	borderLine := strings.Repeat("=", len(title)+30)
+	borderLine := strings.Repeat("=", len(title)+headerBorderPadding)
 	sb.WriteString(borderLine)
 	sb.WriteString("\n")
 	sb.WriteString("  " + title + "  ")

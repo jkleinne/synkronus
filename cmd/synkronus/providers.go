@@ -26,21 +26,21 @@ func (r *ProviderResolver) Resolve(requested []string) ([]string, error) {
 	var unsupported []string
 	seen := make(map[string]bool)
 
-	for _, p := range requested {
-		p = strings.ToLower(strings.TrimSpace(p))
-		if seen[p] {
+	for _, provider := range requested {
+		provider = strings.ToLower(strings.TrimSpace(provider))
+		if seen[provider] {
 			continue
 		}
-		seen[p] = true
+		seen[provider] = true
 
-		if r.IsSupported(p) {
-			if r.IsConfigured(p) {
-				validated = append(validated, p)
+		if r.IsSupported(provider) {
+			if r.IsConfigured(provider) {
+				validated = append(validated, provider)
 			} else {
-				return nil, fmt.Errorf("%s provider '%s' was requested but is not configured. Use 'synkronus config set %s.<key> <value>'", r.Label, p, p)
+				return nil, fmt.Errorf("%s provider '%s' was requested but is not configured. Use 'synkronus config set %s.<key> <value>'", r.Label, provider, provider)
 			}
 		} else {
-			unsupported = append(unsupported, p)
+			unsupported = append(unsupported, provider)
 		}
 	}
 

@@ -191,7 +191,7 @@ func deleteBucketCmd(svc *service.StorageService, name, provider string) tea.Cmd
 // downloadObjectCmd downloads an object to the specified directory.
 func downloadObjectCmd(svc *service.StorageService, bucketName, objectKey, provider, destDir string) tea.Cmd {
 	return func() tea.Msg {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+		ctx, cancel := context.WithTimeout(context.Background(), transferTimeout)
 		defer cancel()
 
 		basename, err := objectBasename(objectKey)
@@ -236,7 +236,7 @@ func downloadObjectCmd(svc *service.StorageService, bucketName, objectKey, provi
 // If objectKey is empty, the basename of filePath is used.
 func uploadObjectCmd(svc *service.StorageService, bucketName, provider, filePath, objectKey string) tea.Cmd {
 	return func() tea.Msg {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+		ctx, cancel := context.WithTimeout(context.Background(), transferTimeout)
 		defer cancel()
 
 		expandedPath, err := expandTilde(filePath)
@@ -332,10 +332,10 @@ func removeProviderCmd(cm *config.ConfigManager, providerName string) tea.Cmd {
 	}
 }
 
-// clearStatusCmd returns a command that fires StatusClearMsg after 3 seconds,
+// clearStatusCmd returns a command that fires StatusClearMsg after statusDisplayDuration,
 // allowing transient status messages to be removed from the view.
 func clearStatusCmd() tea.Cmd {
-	return tea.Tick(3*time.Second, func(time.Time) tea.Msg {
+	return tea.Tick(statusDisplayDuration, func(time.Time) tea.Msg {
 		return StatusClearMsg{}
 	})
 }

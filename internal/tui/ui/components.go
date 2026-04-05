@@ -183,7 +183,7 @@ func RenderKeyValueGrid(sections []KeyValueSection, termWidth int) string {
 		header := SectionHeaderStyle.Render(section.Title)
 		var rows []string
 		for _, kv := range section.Entries {
-			label := TextDimStyle.Width(20).Render(kv.Key)
+			label := TextDimStyle.Width(keyValueLabelWidth).Render(kv.Key)
 			value := formatValue(kv.Value, kv.Style)
 			rows = append(rows, lipgloss.JoinHorizontal(lipgloss.Top, label, value))
 		}
@@ -232,6 +232,9 @@ func RenderBreadcrumb(parts []string) string {
 	}
 	return strings.Join(rendered, "")
 }
+
+// keyValueLabelWidth is the fixed character width of the key column in key-value grids.
+const keyValueLabelWidth = 20
 
 // RenderError renders an inline error message.
 // maxErrorLength is the maximum characters shown in inline error messages.

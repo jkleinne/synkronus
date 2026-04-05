@@ -56,6 +56,10 @@ func mapSoftDeletePolicy(sdp *gcpstorage.SoftDeletePolicy) *storage.SoftDeletePo
 	}
 }
 
+// publicAccessPreventionUnknown is returned when the GCP SDK returns an unrecognized
+// public access prevention value, which should not occur under normal circumstances.
+const publicAccessPreventionUnknown = "Unknown"
+
 func mapPublicAccessPrevention(pap gcpstorage.PublicAccessPrevention) string {
 	switch pap {
 	case gcpstorage.PublicAccessPreventionEnforced:
@@ -63,7 +67,7 @@ func mapPublicAccessPrevention(pap gcpstorage.PublicAccessPrevention) string {
 	case gcpstorage.PublicAccessPreventionInherited:
 		return shared.PublicAccessInherited
 	default:
-		return "Unknown"
+		return publicAccessPreventionUnknown
 	}
 }
 

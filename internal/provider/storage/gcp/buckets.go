@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"slices"
 	"strings"
+	"net/http"
 	"synkronus/internal/domain"
 	"synkronus/internal/domain/storage"
 
@@ -199,7 +200,7 @@ func (g *GCPStorage) getACLs(ctx context.Context, bucketHandle *gcpstorage.Bucke
 	if err != nil {
 		var gcsErr *googleapi.Error
 		// If UBLA is enabled, GCP returns a 400 error when trying to list ACLs (treating as expected behavior)
-		if errors.As(err, &gcsErr) && gcsErr.Code == 400 {
+		if errors.As(err, &gcsErr) && gcsErr.Code == http.StatusBadRequest {
 			return []storage.ACLRule{}, nil
 		}
 		return nil, fmt.Errorf("failed to list ACLs: %w", err)

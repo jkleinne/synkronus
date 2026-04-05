@@ -7,6 +7,7 @@ import (
 
 	"synkronus/internal/domain"
 	"synkronus/internal/domain/storage"
+	"synkronus/internal/provider/storage/shared"
 )
 
 const (
@@ -76,17 +77,17 @@ func (v BucketDetailView) renderOverview() string {
 	table.AddRow([]string{"Usage (Total Bytes)", storage.FormatBytes(v.UsageBytes)})
 
 	if v.Provider == domain.GCP && v.Autoclass != nil {
-		autoclassStatus := "Disabled"
+		autoclassStatus := shared.StatusDisabled
 		if v.Autoclass.Enabled {
-			autoclassStatus = "Enabled"
+			autoclassStatus = shared.StatusEnabled
 		}
 		table.AddRow([]string{"Autoclass", autoclassStatus})
 	}
 
 	if v.Provider == domain.GCP {
-		requesterPaysStatus := "Disabled"
+		requesterPaysStatus := shared.StatusDisabled
 		if v.RequesterPays {
-			requesterPaysStatus = "Enabled"
+			requesterPaysStatus = shared.StatusEnabled
 		}
 		table.AddRow([]string{"Requester Pays", requesterPaysStatus})
 	}
@@ -131,9 +132,9 @@ func (v BucketDetailView) renderAccessControl() string {
 	if v.Logging != nil {
 		prefix := ""
 		if v.Provider == domain.GCP {
-			prefix = "gs://"
+			prefix = shared.GCSBucketURIPrefix
 		} else if v.Provider == domain.AWS {
-			prefix = "s3://"
+			prefix = shared.S3BucketURIPrefix
 		}
 		configTable.AddRow([]string{"Usage Logging", fmt.Sprintf("%s%s/%s", prefix, v.Logging.LogBucket, v.Logging.LogObjectPrefix)})
 	} else {
@@ -265,9 +266,9 @@ func (v BucketDetailView) renderDataProtection() string {
 	if v.Encryption != nil && v.Encryption.KmsKeyName != "" {
 		table.AddRow([]string{"Encryption (CMEK)", v.Encryption.KmsKeyName})
 	} else {
-		defaultEncryption := "Provider-managed"
+		defaultEncryption := shared.EncryptionProviderManaged
 		if v.Provider == domain.GCP {
-			defaultEncryption = "Google-managed"
+			defaultEncryption = shared.EncryptionGoogleManaged
 		}
 		table.AddRow([]string{"Encryption (CMEK)", defaultEncryption})
 	}
@@ -275,15 +276,15 @@ func (v BucketDetailView) renderDataProtection() string {
 	if v.Versioning != nil {
 		status := "Suspended"
 		if v.Versioning.Enabled {
-			status = "Enabled"
+			status = shared.StatusEnabled
 		}
 		table.AddRow([]string{"Object Versioning", status})
 	}
 
 	if v.SoftDeletePolicy != nil {
-		table.AddRow([]string{"Soft Delete Policy", fmt.Sprintf("Enabled (Retention: %v)", v.SoftDeletePolicy.RetentionDuration)})
+		table.AddRow([]string{"Soft Delete Policy", fmt.Sprintf("%s (Retention: %v)", shared.StatusEnabled, v.SoftDeletePolicy.RetentionDuration)})
 	} else {
-		table.AddRow([]string{"Soft Delete Policy", "Disabled"})
+		table.AddRow([]string{"Soft Delete Policy", shared.StatusDisabled})
 	}
 
 	if v.RetentionPolicy != nil {
@@ -291,9 +292,9 @@ func (v BucketDetailView) renderDataProtection() string {
 		if v.RetentionPolicy.IsLocked {
 			lockedStatus = ", Locked"
 		}
-		table.AddRow([]string{"Retention Policy", fmt.Sprintf("Enabled (Period: %v%s)", v.RetentionPolicy.RetentionPeriod, lockedStatus)})
+		table.AddRow([]string{"Retention Policy", fmt.Sprintf("%s (Period: %v%s)", shared.StatusEnabled, v.RetentionPolicy.RetentionPeriod, lockedStatus)})
 	} else {
-		table.AddRow([]string{"Retention Policy", "Disabled"})
+		table.AddRow([]string{"Retention Policy", shared.StatusDisabled})
 	}
 
 	sb.WriteString(table.String())

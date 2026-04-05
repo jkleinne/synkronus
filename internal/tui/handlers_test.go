@@ -223,14 +223,14 @@ func TestHandleOverlayKeys_EscClosesNonTextOverlay(t *testing.T) {
 func TestHandleOverlayKeys_TabCyclesCreateFields(t *testing.T) {
 	m := newTestModel()
 	m.overlay = OverlayCreateBucket
-	m.storage.createField = 0
+	m.storage.createFieldIndex = 0
 
 	// Cycle through all 8 fields (0 -> 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 0)
 	expected := []int{1, 2, 3, 4, 5, 6, 7, 0}
 	for i, want := range expected {
 		_, _ = m.handleOverlayKeys(tea.KeyMsg{Type: tea.KeyTab})
-		if m.storage.createField != want {
-			t.Errorf("step %d: createField = %d, want %d", i, m.storage.createField, want)
+		if m.storage.createFieldIndex != want {
+			t.Errorf("step %d: createField = %d, want %d", i, m.storage.createFieldIndex, want)
 		}
 	}
 }
@@ -379,7 +379,7 @@ func TestSyncTextInputToField_SkipsSelectorFields(t *testing.T) {
 	m.storage.createStorageClass = "STANDARD"
 
 	// Selector field (1 = Provider): textinput value should NOT overwrite state.
-	m.storage.createField = 1
+	m.storage.createFieldIndex = 1
 	m.textInput.SetValue("something-typed")
 	m.syncTextInputToField()
 	if m.storage.createProvider != "gcp" {
@@ -387,7 +387,7 @@ func TestSyncTextInputToField_SkipsSelectorFields(t *testing.T) {
 	}
 
 	// Selector field (3 = StorageClass): same behavior.
-	m.storage.createField = 3
+	m.storage.createFieldIndex = 3
 	m.textInput.SetValue("INVALID")
 	m.syncTextInputToField()
 	if m.storage.createStorageClass != "STANDARD" {
@@ -400,7 +400,7 @@ func TestSyncTextInputToField_SyncsFreeTextFields(t *testing.T) {
 	m.overlay = OverlayCreateBucket
 
 	// Free-text field (0 = Name): textinput value should sync to state.
-	m.storage.createField = 0
+	m.storage.createFieldIndex = 0
 	m.textInput.SetValue("new-bucket")
 	m.syncTextInputToField()
 	if m.storage.createName != "new-bucket" {
@@ -408,7 +408,7 @@ func TestSyncTextInputToField_SyncsFreeTextFields(t *testing.T) {
 	}
 
 	// Free-text field (4 = Labels): same behavior.
-	m.storage.createField = 4
+	m.storage.createFieldIndex = 4
 	m.textInput.SetValue("env=staging")
 	m.syncTextInputToField()
 	if m.storage.createLabels != "env=staging" {
@@ -421,7 +421,7 @@ func TestHandleOverlayKeys_SelectorFieldBlocksFreeText(t *testing.T) {
 	m.overlay = OverlayCreateBucket
 	m.storage.availableProviders = []string{"gcp", "aws"}
 	m.storage.createProvider = "gcp"
-	m.storage.createField = 1 // Provider — selector field
+	m.storage.createFieldIndex = 1 // Provider — selector field
 
 	// Typing a character should not change the provider value.
 	_, _ = m.handleOverlayKeys(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'x'}})
@@ -433,7 +433,7 @@ func TestHandleOverlayKeys_SelectorFieldBlocksFreeText(t *testing.T) {
 func TestHandleOverlayKeys_SelectorFieldCyclesOnArrows(t *testing.T) {
 	m := newTestModel()
 	m.overlay = OverlayCreateBucket
-	m.storage.createField = 3 // StorageClass — selector field
+	m.storage.createFieldIndex = 3 // StorageClass — selector field
 	m.storage.createStorageClass = ""
 
 	// Right arrow: "" -> STANDARD
@@ -458,20 +458,20 @@ func TestHandleOverlayKeys_SelectorFieldCyclesOnArrows(t *testing.T) {
 func TestHandleOverlayKeys_TabCyclesConfigAddFields(t *testing.T) {
 	m := newTestModel()
 	m.overlay = OverlayConfigAdd
-	m.storage.createField = 0
+	m.storage.createFieldIndex = 0
 	m.config.editKey = ""
 	m.config.editValue = ""
 
 	// Field 0 -> field 1
 	_, _ = m.handleOverlayKeys(tea.KeyMsg{Type: tea.KeyTab})
-	if m.storage.createField != 1 {
-		t.Errorf("createField = %d, want 1 after first tab", m.storage.createField)
+	if m.storage.createFieldIndex != 1 {
+		t.Errorf("createField = %d, want 1 after first tab", m.storage.createFieldIndex)
 	}
 
 	// Field 1 -> field 0
 	_, _ = m.handleOverlayKeys(tea.KeyMsg{Type: tea.KeyTab})
-	if m.storage.createField != 0 {
-		t.Errorf("createField = %d, want 0 after second tab", m.storage.createField)
+	if m.storage.createFieldIndex != 0 {
+		t.Errorf("createField = %d, want 0 after second tab", m.storage.createFieldIndex)
 	}
 }
 
@@ -513,7 +513,7 @@ func TestHandleOverlaySubmit_CreateBucket_AllFieldsSet(t *testing.T) {
 	m.storage.createLocation = "us-central1"
 	// syncTextInputToField reads the textinput into the active field (field 0 = name),
 	// so the textinput must hold the name value for submission to succeed.
-	m.storage.createField = 0
+	m.storage.createFieldIndex = 0
 	m.textInput.SetValue("new-bucket")
 
 	_, cmd := m.handleOverlaySubmit()
@@ -629,7 +629,7 @@ func TestHandleOverlaySubmit_CreateBucket_WithOptionalFields(t *testing.T) {
 	m.storage.createVersioning = "yes"
 	m.storage.createUniformAccess = "yes"
 	m.storage.createPublicAccessPrevention = "enforced"
-	m.storage.createField = 0
+	m.storage.createFieldIndex = 0
 	m.textInput.SetValue("new-bucket")
 
 	_, cmd := m.handleOverlaySubmit()
