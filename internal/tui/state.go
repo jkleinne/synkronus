@@ -58,3 +58,25 @@ func (o OverlayState) hasTextInput() bool {
 		return false
 	}
 }
+
+// ViewUpdate carries state-change requests from sub-models back to the root Model.
+// Only non-nil pointer fields are applied; nil means "no change".
+type ViewUpdate struct {
+	ViewState      *ViewState
+	Overlay        *OverlayState
+	SwitchTab      *Tab
+	ClearErr       bool
+	FocusTextInput bool
+	TextInputValue *string
+	ResetTextInput bool
+
+	// ForwardToTextInput signals that the root should forward the key to textinput.
+	ForwardToTextInput bool
+}
+
+// Pointer helpers to keep sub-model call sites concise.
+
+func ptrViewState(v ViewState) *ViewState { return &v }
+func ptrOverlay(o OverlayState) *OverlayState { return &o }
+func ptrTab(t Tab) *Tab { return &t }
+func ptrString(s string) *string { return &s }
