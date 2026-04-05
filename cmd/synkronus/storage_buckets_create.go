@@ -31,31 +31,9 @@ func newCreateBucketCmd() *cobra.Command {
 				return err
 			}
 
-			opts := storage.CreateBucketOptions{
-				Name:     args[0],
-				Location: location,
-			}
-			if storageClass != "" {
-				opts.StorageClass = strings.ToUpper(storageClass)
-			}
-			if len(labels) > 0 {
-				opts.Labels = labels
-			}
-			if cmd.Flags().Changed(flags.VersioningFlag) {
-				opts.Versioning = &versioning
-			}
-			if cmd.Flags().Changed(flags.UniformAccess) {
-				if !shared.SupportsOption(provider, "uniform-access") {
-					return fmt.Errorf("--%s is not supported for provider %q", flags.UniformAccess, provider)
-				}
-				opts.UniformBucketLevelAccess = &uniformAccess
-			}
-			if cmd.Flags().Changed(flags.PublicAccessPreventionFlag) {
-				normalized := strings.ToLower(publicAccessPrevention)
-				if normalized != storage.PublicAccessPreventionEnforced && normalized != storage.PublicAccessPreventionInherited {
-					return fmt.Errorf("invalid --public-access-prevention value %q: must be \"enforced\" or \"inherited\"", publicAccessPrevention)
-				}
-				opts.PublicAccessPrevention = &normalized
+			opts, err := buildCreateBucketOptions(cmd, args[0], provider, location, storageClass, publicAccessPrevention, labels, versioning, uniformAccess)
+			if err != nil {
+				return err
 			}
 
 			result, err := app.StorageService.CreateBucket(cmd.Context(), opts, provider)
@@ -83,4 +61,44 @@ func newCreateBucketCmd() *cobra.Command {
 	cmd.Flags().StringVar(&publicAccessPrevention, flags.PublicAccessPreventionFlag, "", "Public access prevention (enforced or inherited)")
 
 	return cmd
+}
+
+// buildCreateBucketOptions assembles a CreateBucketOptions from the parsed flag values.
+// Flag-changed checks are used rather than zero-value checks so that explicitly passing
+// false (e.g. --versioning=false) is still honored.
+func buildCreateBucketOptions(
+	cmd *cobra.Command,
+	name, provider, location, storageClass, publicAccessPrevention string,
+	labels map[string]string,
+	versioning, uniformAccess bool,
+) (storage.CreateBucketOptions, error) {
+	opts := storage.CreateBucketOptions{
+		Name:     name,
+		Location: location,
+	}
+
+	if storageClass != "" {
+		opts.StorageClass = strings.ToUpper(storageClass)
+	}
+	if len(labels) > 0 {
+		opts.Labels = labels
+	}
+	if cmd.Flags().Changed(flags.VersioningFlag) {
+		opts.Versioning = &versioning
+	}
+	if cmd.Flags().Changed(flags.UniformAccess) {
+		if !shared.SupportsOption(provider, "uniform-access") {
+			return storage.CreateBucketOptions{}, fmt.Errorf("--%s is not supported for provider %q", flags.UniformAccess, provider)
+		}
+		opts.UniformBucketLevelAccess = &uniformAccess
+	}
+	if cmd.Flags().Changed(flags.PublicAccessPreventionFlag) {
+		normalized := strings.ToLower(publicAccessPrevention)
+		if normalized != storage.PublicAccessPreventionEnforced && normalized != storage.PublicAccessPreventionInherited {
+			return storage.CreateBucketOptions{}, fmt.Errorf("invalid --public-access-prevention value %q: must be \"enforced\" or \"inherited\"", publicAccessPrevention)
+		}
+		opts.PublicAccessPrevention = &normalized
+	}
+
+	return opts, nil
 }

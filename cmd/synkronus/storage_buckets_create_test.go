@@ -1,77 +1,114 @@
 package main
 
 import (
-	"strings"
-	"synkronus/internal/domain/storage"
+	"bytes"
+	"context"
+	"errors"
 	"testing"
+
+	"synkronus/internal/domain/storage"
 )
 
-func TestCreateBucket_StorageClassNormalization(t *testing.T) {
-	tests := []struct {
-		name  string
-		input string
-		want  string
-	}{
-		{"lowercase", "standard", "STANDARD"},
-		{"mixed case", "Nearline", "NEARLINE"},
-		{"already upper", "COLDLINE", "COLDLINE"},
-		{"empty stays empty", "", ""},
+func TestCreateBucketCmd_HappyPath(t *testing.T) {
+	mock := &cmdMockStorage{
+		createResult: storage.CreateBucketResult{},
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := strings.ToUpper(tt.input)
-			if tt.input == "" {
-				got = ""
-			}
-			if got != tt.want {
-				t.Errorf("storageClass = %q, want %q", got, tt.want)
-			}
-		})
+	factory := &cmdStorageFactory{providers: map[string]storage.Storage{"gcp": mock}}
+	app := newStorageTestApp(factory, nil)
+
+	var buf bytes.Buffer
+	cmd := newCreateBucketCmd()
+	cmd.SetOut(&buf)
+	cmd.SetErr(&buf)
+	cmd.SetContext(app.ToContext(context.Background()))
+	cmd.SetArgs([]string{"my-bucket", "--provider", "gcp", "--location", "us-central1"})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }
 
-func TestCreateBucket_PublicAccessPreventionValidation(t *testing.T) {
-	tests := []struct {
-		name    string
-		input   string
-		wantErr bool
-	}{
-		{"enforced lowercase", "enforced", false},
-		{"inherited lowercase", "inherited", false},
-		{"enforced mixed case", "Enforced", false},
-		{"inherited mixed case", "Inherited", false},
-		{"invalid value", "blocked", true},
-		{"empty value", "", true},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			normalized := strings.ToLower(tt.input)
-			valid := normalized == storage.PublicAccessPreventionEnforced ||
-				normalized == storage.PublicAccessPreventionInherited
-			if valid == tt.wantErr {
-				t.Errorf("valid = %v, wantErr = %v for input %q", valid, tt.wantErr, tt.input)
-			}
-		})
+func TestCreateBucketCmd_MissingProviderFlag_ReturnsError(t *testing.T) {
+	app := newStorageTestApp(&cmdStorageFactory{}, nil)
+
+	var buf bytes.Buffer
+	cmd := newCreateBucketCmd()
+	cmd.SetOut(&buf)
+	cmd.SetErr(&buf)
+	cmd.SetContext(app.ToContext(context.Background()))
+	cmd.SetArgs([]string{"my-bucket", "--location", "us-central1"})
+
+	if err := cmd.Execute(); err == nil {
+		t.Fatal("expected error for missing --provider flag, got nil")
 	}
 }
 
-func TestCreateBucket_UniformAccessGCPOnly(t *testing.T) {
-	tests := []struct {
-		name     string
-		provider string
-		wantErr  bool
-	}{
-		{"gcp allowed", "gcp", false},
-		{"GCP uppercase allowed", "GCP", false},
-		{"aws rejected", "aws", true},
-		{"AWS uppercase rejected", "AWS", true},
+func TestCreateBucketCmd_MissingLocationFlag_ReturnsError(t *testing.T) {
+	app := newStorageTestApp(&cmdStorageFactory{}, nil)
+
+	var buf bytes.Buffer
+	cmd := newCreateBucketCmd()
+	cmd.SetOut(&buf)
+	cmd.SetErr(&buf)
+	cmd.SetContext(app.ToContext(context.Background()))
+	cmd.SetArgs([]string{"my-bucket", "--provider", "gcp"})
+
+	if err := cmd.Execute(); err == nil {
+		t.Fatal("expected error for missing --location flag, got nil")
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			isGCP := strings.ToLower(tt.provider) == "gcp"
-			if isGCP == tt.wantErr {
-				t.Errorf("isGCP = %v, wantErr = %v for provider %q", isGCP, tt.wantErr, tt.provider)
-			}
-		})
+}
+
+func TestCreateBucketCmd_UniformAccessNonGCP_ReturnsError(t *testing.T) {
+	mock := &cmdMockStorage{}
+	factory := &cmdStorageFactory{providers: map[string]storage.Storage{"aws": mock}}
+	app := newStorageTestApp(factory, nil)
+
+	var buf bytes.Buffer
+	cmd := newCreateBucketCmd()
+	cmd.SetOut(&buf)
+	cmd.SetErr(&buf)
+	cmd.SetContext(app.ToContext(context.Background()))
+	cmd.SetArgs([]string{"my-bucket", "--provider", "aws", "--location", "us-east-1", "--uniform-access"})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected error for --uniform-access on non-GCP provider, got nil")
+	}
+}
+
+func TestCreateBucketCmd_ServiceError_ReturnsError(t *testing.T) {
+	serviceErr := errors.New("bucket already exists")
+	mock := &cmdMockStorage{err: serviceErr}
+	factory := &cmdStorageFactory{providers: map[string]storage.Storage{"gcp": mock}}
+	app := newStorageTestApp(factory, nil)
+
+	var buf bytes.Buffer
+	cmd := newCreateBucketCmd()
+	cmd.SetOut(&buf)
+	cmd.SetErr(&buf)
+	cmd.SetContext(app.ToContext(context.Background()))
+	cmd.SetArgs([]string{"my-bucket", "--provider", "gcp", "--location", "us-central1"})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected error from service, got nil")
+	}
+	if !errors.Is(err, serviceErr) {
+		t.Errorf("expected service error in chain, got: %v", err)
+	}
+}
+
+func TestCreateBucketCmd_InvalidPublicAccessPrevention_ReturnsError(t *testing.T) {
+	app := newStorageTestApp(&cmdStorageFactory{}, nil)
+
+	var buf bytes.Buffer
+	cmd := newCreateBucketCmd()
+	cmd.SetOut(&buf)
+	cmd.SetErr(&buf)
+	cmd.SetContext(app.ToContext(context.Background()))
+	cmd.SetArgs([]string{"my-bucket", "--provider", "gcp", "--location", "us-central1", "--public-access-prevention", "blocked"})
+
+	if err := cmd.Execute(); err == nil {
+		t.Fatal("expected error for invalid --public-access-prevention value, got nil")
 	}
 }

@@ -175,7 +175,7 @@ func (cm *ConfigManager) GetAllSettings() map[string]any {
 
 // RemoveProvider removes an entire provider block (e.g., "gcp", "aws") from the
 // configuration. This bypasses per-field validation since the entire block is
-// removed — there are no dangling required fields. Returns true if the provider
+// removed - there are no dangling required fields. Returns true if the provider
 // was configured and removed, false if it wasn't present.
 func (cm *ConfigManager) RemoveProvider(providerName string) (bool, error) {
 	providerName = strings.ToLower(providerName)
@@ -185,31 +185,15 @@ func (cm *ConfigManager) RemoveProvider(providerName string) (bool, error) {
 		return false, nil
 	}
 
-	// Remove the provider key from settings and write a fresh config file
+	// Remove the provider key from settings and write a fresh config file.
 	delete(settings, providerName)
 
-	// Write the cleaned settings directly to file, bypassing Viper's
-	// in-memory state which doesn't support key deletion.
-	configPath, err := cm.getPreferredConfigPath()
+	configPath, err := cm.writeConfigFile(settings)
 	if err != nil {
 		return false, err
 	}
 
-	configDir := filepath.Dir(configPath)
-	if err := os.MkdirAll(configDir, ConfigDirPermissions); err != nil {
-		return false, fmt.Errorf("failed to create config directory: %w", err)
-	}
-
-	data, err := marshalJSON(settings)
-	if err != nil {
-		return false, fmt.Errorf("failed to marshal config: %w", err)
-	}
-
-	if err := os.WriteFile(configPath, data, ConfigFilePermissions); err != nil {
-		return false, fmt.Errorf("failed to write config file: %w", err)
-	}
-
-	// Viper doesn't support key deletion — ReadInConfig merges with
+	// Viper doesn't support key deletion - ReadInConfig merges with
 	// existing state. Create a fresh Viper instance pointing at the same file.
 	freshViper := viper.New()
 	freshViper.SetConfigFile(configPath)
@@ -219,6 +203,32 @@ func (cm *ConfigManager) RemoveProvider(providerName string) (bool, error) {
 	cm.v = freshViper
 
 	return true, nil
+}
+
+// writeConfigFile marshals settings as indented JSON and writes the file at the
+// preferred config path, creating the directory with secure permissions if needed.
+// It returns the resolved config path on success.
+func (cm *ConfigManager) writeConfigFile(settings map[string]any) (string, error) {
+	configPath, err := cm.getPreferredConfigPath()
+	if err != nil {
+		return "", err
+	}
+
+	configDir := filepath.Dir(configPath)
+	if err := os.MkdirAll(configDir, ConfigDirPermissions); err != nil {
+		return "", fmt.Errorf("failed to create config directory: %w", err)
+	}
+
+	data, err := marshalJSON(settings)
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal config: %w", err)
+	}
+
+	if err := os.WriteFile(configPath, data, ConfigFilePermissions); err != nil {
+		return "", fmt.Errorf("failed to write config file: %w", err)
+	}
+
+	return configPath, nil
 }
 
 // marshalJSON encodes settings as indented JSON.

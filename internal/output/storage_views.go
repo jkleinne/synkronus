@@ -164,71 +164,85 @@ func (v BucketDetailView) renderIAMPolicy() string {
 		return sb.String()
 	}
 
-	// GCP: role → principals bindings
 	if len(v.IAMPolicy.Bindings) > 0 {
-		iamTable := NewTable([]string{"Role", "Principal(s)"})
-
-		for _, binding := range v.IAMPolicy.Bindings {
-			if len(binding.Principals) == 0 {
-				continue
-			}
-
-			iamTable.AddRow([]string{binding.Role, binding.Principals[0]})
-
-			for i := 1; i < len(binding.Principals); i++ {
-				iamTable.AddRow([]string{"", binding.Principals[i]})
-			}
-		}
-
-		sb.WriteString(iamTable.String())
-		sb.WriteString("\n")
-
-		// Render condition annotations after the table
-		hasConditions := false
-		for _, binding := range v.IAMPolicy.Bindings {
-			if binding.Condition != nil {
-				if !hasConditions {
-					sb.WriteString("Conditions:\n")
-					hasConditions = true
-				}
-				firstPrincipal := ""
-				if len(binding.Principals) > 0 {
-					firstPrincipal = fmt.Sprintf(" (%s)", binding.Principals[0])
-				}
-				sb.WriteString(fmt.Sprintf("  %s%s — %s\n", binding.Role, firstPrincipal, binding.Condition.Title))
-				if binding.Condition.Description != "" {
-					sb.WriteString(fmt.Sprintf("    %s\n", binding.Condition.Description))
-				}
-				sb.WriteString(fmt.Sprintf("    %s\n", binding.Condition.Expression))
-			}
-		}
-		if hasConditions {
-			sb.WriteString("\n")
-		}
-		sb.WriteString("\n")
+		sb.WriteString(renderGCPBindings(v.IAMPolicy.Bindings))
 	}
 
-	// AWS: bucket policy statements
 	if len(v.IAMPolicy.Statements) > 0 {
-		sb.WriteString("Bucket Policy Statements:\n")
-		stmtTable := NewTable([]string{"Effect", "Principal(s)", "Action(s)", "Resource(s)"})
-		condCount := 0
-		for _, stmt := range v.IAMPolicy.Statements {
-			stmtTable.AddRow([]string{
-				stmt.Effect,
-				strings.Join(stmt.Principals, ", "),
-				strings.Join(stmt.Actions, ", "),
-				strings.Join(stmt.Resources, ", "),
-			})
-			condCount += len(stmt.Conditions)
+		sb.WriteString(renderAWSStatements(v.IAMPolicy.Statements))
+	}
+
+	return sb.String()
+}
+
+// renderGCPBindings formats GCP IAM role-to-principal bindings as an ASCII table,
+// followed by condition annotations for any bindings that carry a condition expression.
+func renderGCPBindings(bindings []storage.IAMBinding) string {
+	var sb strings.Builder
+
+	iamTable := NewTable([]string{"Role", "Principal(s)"})
+	for _, binding := range bindings {
+		if len(binding.Principals) == 0 {
+			continue
 		}
-		sb.WriteString(stmtTable.String())
-		sb.WriteString("\n")
-		if condCount > 0 {
-			sb.WriteString(fmt.Sprintf("Note: %d condition(s) present — use --output json for full details.\n", condCount))
+		iamTable.AddRow([]string{binding.Role, binding.Principals[0]})
+		for i := 1; i < len(binding.Principals); i++ {
+			iamTable.AddRow([]string{"", binding.Principals[i]})
 		}
+	}
+	sb.WriteString(iamTable.String())
+	sb.WriteString("\n")
+
+	hasConditions := false
+	for _, binding := range bindings {
+		if binding.Condition != nil {
+			if !hasConditions {
+				sb.WriteString("Conditions:\n")
+				hasConditions = true
+			}
+			firstPrincipal := ""
+			if len(binding.Principals) > 0 {
+				firstPrincipal = fmt.Sprintf(" (%s)", binding.Principals[0])
+			}
+			sb.WriteString(fmt.Sprintf("  %s%s - %s\n", binding.Role, firstPrincipal, binding.Condition.Title))
+			if binding.Condition.Description != "" {
+				sb.WriteString(fmt.Sprintf("    %s\n", binding.Condition.Description))
+			}
+			sb.WriteString(fmt.Sprintf("    %s\n", binding.Condition.Expression))
+		}
+	}
+	if hasConditions {
 		sb.WriteString("\n")
 	}
+	sb.WriteString("\n")
+
+	return sb.String()
+}
+
+// renderAWSStatements formats AWS bucket policy statements as an ASCII table.
+// When conditions are present they are summarized with a note directing the user
+// to --output json for the full details.
+func renderAWSStatements(statements []storage.PolicyStatement) string {
+	var sb strings.Builder
+
+	sb.WriteString("Bucket Policy Statements:\n")
+	stmtTable := NewTable([]string{"Effect", "Principal(s)", "Action(s)", "Resource(s)"})
+	condCount := 0
+	for _, stmt := range statements {
+		stmtTable.AddRow([]string{
+			stmt.Effect,
+			strings.Join(stmt.Principals, ", "),
+			strings.Join(stmt.Actions, ", "),
+			strings.Join(stmt.Resources, ", "),
+		})
+		condCount += len(stmt.Conditions)
+	}
+	sb.WriteString(stmtTable.String())
+	sb.WriteString("\n")
+	if condCount > 0 {
+		sb.WriteString(fmt.Sprintf("Note: %d condition(s) present - use --output json for full details.\n", condCount))
+	}
+	sb.WriteString("\n")
 
 	return sb.String()
 }

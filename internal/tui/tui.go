@@ -2,7 +2,6 @@
 package tui
 
 import (
-	"fmt"
 	"log/slog"
 	"strings"
 
@@ -11,8 +10,6 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"synkronus/internal/config"
-	domainsql "synkronus/internal/domain/sql"
-	"synkronus/internal/domain/storage"
 	"synkronus/internal/provider/factory"
 	"synkronus/internal/service"
 	"synkronus/internal/tui/ui"
@@ -37,13 +34,9 @@ func Run(deps Deps) error {
 }
 
 // Model is the single Bubble Tea model for the entire TUI.
+// It acts as a thin router, delegating state and logic to focused sub-models.
 type Model struct {
-	storageService *service.StorageService
-	sqlService     *service.SqlService
-	configManager  *config.ConfigManager
-	cfg            *config.Config
-	factory        *factory.Factory
-	logger         *slog.Logger
+	deps Deps
 
 	viewState ViewState
 	overlay   OverlayState
@@ -52,9 +45,9 @@ type Model struct {
 	width  int
 	height int
 
-	storage storageState
-	sql     sqlState
-	config  configState
+	storage StorageModel
+	sql     SqlModel
+	config  ConfigModel
 
 	spinner       spinner.Model
 	textInput     textinput.Model
@@ -70,59 +63,6 @@ const (
 	deleteTargetObject
 )
 
-// storageState holds the mutable state for the Storage tab.
-type storageState struct {
-	buckets        []storage.Bucket
-	objects        storage.ObjectList
-	selectedBucket storage.Bucket
-	selectedObject storage.Object
-	cursor         int
-	scrollOffset   int
-	loading        bool
-	loaded         bool
-	createName                   string
-	createProvider               string
-	createLocation               string
-	availableProviders           []string
-	createStorageClass           string
-	createLabels                 string
-	createVersioning             string // "yes"/"no"/""
-	createUniformAccess          string // "yes"/"no"/""
-	createPublicAccessPrevention string // "enforced"/"inherited"/""
-	createFieldIndex             int
-	createHiddenFields           map[int]bool
-	deleteInput                  string
-	downloadingKey               string // non-empty when a download is in progress, for spinner text
-	downloadDir                  string // directory path entered in the download overlay
-	uploadFilePath               string // file path entered in upload overlay
-	uploadObjectKey              string // optional custom key entered in upload overlay
-	uploadField                  int    // 0 = file path, 1 = object key
-	deleteKind                   deleteTarget
-	deleteObjectKey              string
-}
-
-// sqlState holds the mutable state for the SQL tab.
-type sqlState struct {
-	instances        []domainsql.Instance
-	selectedInstance domainsql.Instance
-	cursor           int
-	scrollOffset     int
-	loading          bool
-	loaded           bool
-}
-
-// configState holds the mutable state for the Config tab.
-type configState struct {
-	entries      []ui.ConfigEntry
-	cursor       int
-	scrollOffset int
-	loading      bool
-	loaded       bool
-	editKey      string
-	editValue    string
-	isNewEntry   bool
-}
-
 // NewModel constructs the TUI model with injected dependencies and sensible defaults.
 func NewModel(deps Deps) Model {
 	s := spinner.New()
@@ -132,12 +72,7 @@ func NewModel(deps Deps) Model {
 	ti.CharLimit = textInputCharLimit
 
 	return Model{
-		storageService: deps.StorageService,
-		sqlService:     deps.SqlService,
-		configManager:  deps.ConfigManager,
-		cfg:            deps.Config,
-		factory:        deps.Factory,
-		logger:         deps.Logger,
+		deps: deps,
 
 		viewState: ViewStorageList,
 		overlay:   OverlayNone,
@@ -151,7 +86,7 @@ func NewModel(deps Deps) Model {
 // Init implements tea.Model. It starts the spinner and triggers the initial bucket fetch.
 func (m Model) Init() tea.Cmd {
 	m.storage.loading = true
-	return tea.Batch(m.spinner.Tick, fetchBucketsCmd(m.storageService, m.factory))
+	return tea.Batch(m.spinner.Tick, fetchBucketsCmd(m.deps.StorageService, m.deps.Factory))
 }
 
 // Update implements tea.Model. It dispatches incoming messages to the appropriate handler.
@@ -270,12 +205,12 @@ func (m *Model) isListView() bool {
 
 // providerStatuses builds the provider status dots for the tab bar.
 func (m *Model) providerStatuses() []ui.ProviderStatus {
-	storageProviders := m.factory.SupportedStorageProviders()
+	storageProviders := m.deps.Factory.SupportedStorageProviders()
 	statuses := make([]ui.ProviderStatus, 0, len(storageProviders))
 	for _, name := range storageProviders {
 		statuses = append(statuses, ui.ProviderStatus{
 			Name:       name,
-			Configured: m.factory.IsConfigured(name),
+			Configured: m.deps.Factory.IsConfigured(name),
 		})
 	}
 	return statuses
@@ -323,161 +258,49 @@ func (m *Model) currentBindingContext() ui.BindingContext {
 	}
 }
 
-// renderContent dispatches to the appropriate ui.Render* function based on viewState.
+// renderContent dispatches to the appropriate sub-model's renderer based on viewState.
 func (m *Model) renderContent() string {
 	switch m.viewState {
-	case ViewStorageList:
-		if m.storage.loading {
-			return ui.CenterContent(ui.RenderSpinnerView(m.spinner.View(), "Loading buckets..."), m.width)
-		}
-		return ui.RenderBucketList(m.storage.buckets, m.storage.cursor, m.storage.scrollOffset, m.width)
-
-	case ViewStorageBucketDetail:
-		if m.storage.loading {
-			return ui.CenterContent(ui.RenderSpinnerView(m.spinner.View(), "Loading bucket details..."), m.width)
-		}
-		return ui.RenderBucketDetail(m.storage.selectedBucket, m.width)
-
-	case ViewStorageObjectList:
-		if m.storage.loading {
-			spinnerMsg := "Loading objects..."
-			if m.storage.downloadingKey != "" {
-				spinnerMsg = fmt.Sprintf("Downloading %s...", m.storage.downloadingKey)
-			}
-			return ui.CenterContent(ui.RenderSpinnerView(m.spinner.View(), spinnerMsg), m.width)
-		}
-		return ui.RenderObjectList(m.storage.objects, m.storage.cursor, m.storage.scrollOffset, m.width)
-
-	case ViewStorageObjectDetail:
-		if m.storage.loading {
-			spinnerMsg := "Loading object details..."
-			if m.storage.downloadingKey != "" {
-				spinnerMsg = fmt.Sprintf("Downloading %s...", m.storage.downloadingKey)
-			}
-			return ui.CenterContent(ui.RenderSpinnerView(m.spinner.View(), spinnerMsg), m.width)
-		}
-		return ui.RenderObjectDetail(m.storage.selectedObject, m.width)
-
-	case ViewSqlList:
-		if m.sql.loading {
-			return ui.CenterContent(ui.RenderSpinnerView(m.spinner.View(), "Loading instances..."), m.width)
-		}
-		return ui.RenderInstanceList(m.sql.instances, m.sql.cursor, m.sql.scrollOffset, m.width)
-
-	case ViewSqlInstanceDetail:
-		if m.sql.loading {
-			return ui.CenterContent(ui.RenderSpinnerView(m.spinner.View(), "Loading instance details..."), m.width)
-		}
-		return ui.RenderInstanceDetail(m.sql.selectedInstance, m.width)
-
-	case ViewConfigList:
-		if m.config.loading {
-			return ui.CenterContent(ui.RenderSpinnerView(m.spinner.View(), "Loading configuration..."), m.width)
-		}
-		return ui.RenderConfigList(m.config.entries, m.config.cursor, m.config.scrollOffset, m.width)
-
-	case ViewConfigEdit:
-		return ui.RenderConfigEdit(m.config.editKey, m.textInput.View(), m.config.isNewEntry, m.width, m.height)
-
+	case ViewStorageList, ViewStorageBucketDetail, ViewStorageObjectList, ViewStorageObjectDetail:
+		return m.storage.RenderContent(m.viewState, m.spinner.View(), m.width)
+	case ViewSqlList, ViewSqlInstanceDetail:
+		return m.sql.RenderContent(m.viewState, m.spinner.View(), m.width)
+	case ViewConfigList, ViewConfigEdit:
+		return m.config.RenderContent(m.viewState, m.textInput.View(), m.spinner.View(), m.width, m.height)
 	default:
 		return ""
 	}
 }
 
-// renderOverlay renders the active modal overlay, replacing the base view entirely.
-func (m *Model) renderOverlay() string {
-	switch m.overlay {
-	case OverlayHelp:
-		content := ui.RenderHelpContent()
-		return ui.RenderModal("Help", content, m.width, m.height)
-
-	case OverlayCreateBucket:
-		selectorFields := make(map[int]bool)
-		for i := range createFormFieldCount {
-			if m.getCreateFieldOptions(i) != nil {
-				selectorFields[i] = true
-			}
-		}
-		content := ui.RenderCreateBucketForm(
-			ui.CreateBucketFormFields{
-				Name:                   m.storage.createName,
-				Provider:               m.storage.createProvider,
-				Location:               m.storage.createLocation,
-				StorageClass:           m.storage.createStorageClass,
-				Labels:                 m.storage.createLabels,
-				Versioning:             m.storage.createVersioning,
-				UniformAccess:          m.storage.createUniformAccess,
-				PublicAccessPrevention: m.storage.createPublicAccessPrevention,
-				SelectorFields:         selectorFields,
-				HiddenFields:           m.storage.createHiddenFields,
-			},
-			m.storage.createFieldIndex,
-			m.textInput.View(),
-		)
-		return ui.RenderModal("Create Bucket", content, m.width, m.height)
-
-	case OverlayDeleteConfirm:
-		var title, targetName string
-		switch m.storage.deleteKind {
-		case deleteTargetBucket:
-			title = "Delete Bucket"
-			targetName = m.storage.selectedBucket.Name
-		case deleteTargetObject:
-			title = "Delete Object"
-			targetName = m.storage.deleteObjectKey
-		}
-		content := ui.RenderDeleteConfirm(targetName, m.textInput.View())
-		return ui.RenderModal(title, content, m.width, m.height)
-
-	case OverlayConfigAdd:
-		content := fmt.Sprintf(
-			"%s %s\n%s %s",
-			ui.TextDimStyle.Render("Key:"),
-			m.textInput.View(),
-			ui.TextDimStyle.Render("Value:"),
-			ui.TextSecondaryStyle.Render(m.config.editValue),
-		)
-		if m.config.isNewEntry && m.storage.createFieldIndex == 1 {
-			// Second field focused: show key as static, value as input
-			content = fmt.Sprintf(
-				"%s %s\n%s %s",
-				ui.TextDimStyle.Render("Key:"),
-				ui.TextSecondaryStyle.Render(m.config.editKey),
-				ui.TextDimStyle.Render("Value:"),
-				m.textInput.View(),
-			)
-		}
-		return ui.RenderModal("Add Config Entry", content, m.width, m.height)
-
-	case OverlayConfigDelete:
-		content := ui.RenderConfigDeleteConfirm(m.config.editKey)
-		return ui.RenderModal("Remove Provider", content, m.width, m.height)
-
-	case OverlayDownloadPath:
-		content := fmt.Sprintf(
-			"%s %s\n\n%s %s",
-			ui.TextDimStyle.Render("Object:"),
-			ui.TextSecondaryStyle.Render(m.storage.downloadingKey),
-			ui.TextDimStyle.Render("Save to:"),
-			m.textInput.View(),
-		)
-		return ui.RenderModal("Download Object", content, m.width, m.height)
-
-	case OverlayUploadObject:
-		fieldLabels := []string{"File path:", "Object key (optional):"}
-		values := []string{m.storage.uploadFilePath, m.storage.uploadObjectKey}
-		var lines []string
-		for i, label := range fieldLabels {
-			if i == m.storage.uploadField {
-				lines = append(lines, fmt.Sprintf("%s %s", ui.TextDimStyle.Render(label), m.textInput.View()))
-			} else {
-				lines = append(lines, fmt.Sprintf("%s %s", ui.TextDimStyle.Render(label), ui.TextSecondaryStyle.Render(values[i])))
-			}
-		}
-		content := strings.Join(lines, "\n")
-		return ui.RenderModal("Upload Object", content, m.width, m.height)
-
-	default:
-		return ""
+// applyViewUpdate applies state-change requests from a sub-model's ViewUpdate to the root Model.
+func (m *Model) applyViewUpdate(vu ViewUpdate) {
+	if vu.ViewState != nil {
+		m.viewState = *vu.ViewState
 	}
+	if vu.Overlay != nil {
+		m.overlay = *vu.Overlay
+	}
+	if vu.ClearErr {
+		m.err = nil
+	}
+	if vu.ResetTextInput {
+		m.textInput.Reset()
+	}
+	if vu.TextInputValue != nil {
+		m.textInput.SetValue(*vu.TextInputValue)
+	}
+	if vu.FocusTextInput {
+		m.textInput.Focus()
+	}
+}
+
+// refreshFactoryConfig reloads the config from disk and updates the factory
+// so provider status checks and queries reflect the latest configuration.
+func (m *Model) refreshFactoryConfig() {
+	cfg, err := m.deps.ConfigManager.LoadConfig()
+	if err != nil {
+		return
+	}
+	m.deps.Config = cfg
+	m.deps.Factory.UpdateConfig(cfg)
 }
