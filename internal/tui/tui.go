@@ -14,7 +14,6 @@ import (
 	domainsql "synkronus/internal/domain/sql"
 	"synkronus/internal/domain/storage"
 	"synkronus/internal/provider/factory"
-	"synkronus/internal/provider/registry"
 	"synkronus/internal/service"
 	"synkronus/internal/tui/ui"
 )
@@ -271,7 +270,7 @@ func (m *Model) isListView() bool {
 
 // providerStatuses builds the provider status dots for the tab bar.
 func (m *Model) providerStatuses() []ui.ProviderStatus {
-	storageProviders := registry.GetSupportedProviders()
+	storageProviders := m.factory.SupportedStorageProviders()
 	statuses := make([]ui.ProviderStatus, 0, len(storageProviders))
 	for _, name := range storageProviders {
 		statuses = append(statuses, ui.ProviderStatus{

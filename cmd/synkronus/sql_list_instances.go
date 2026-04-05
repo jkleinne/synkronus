@@ -6,7 +6,6 @@ import (
 	"strings"
 	"synkronus/internal/flags"
 	"synkronus/internal/output"
-	"synkronus/internal/provider/registry"
 
 	"github.com/spf13/cobra"
 )
@@ -27,10 +26,10 @@ Use the --providers flag to specify which providers to query (e.g., --providers 
 			}
 
 			resolver := &ProviderResolver{
-				IsSupported:   registry.IsSqlSupported,
+				IsSupported:   isInList(app.ProviderFactory.SupportedSqlProviders),
 				IsConfigured:  app.ProviderFactory.IsSqlConfigured,
-				GetConfigured: app.ProviderFactory.GetConfiguredSqlProviders,
-				GetSupported:  registry.GetSupportedSqlProviders,
+				GetConfigured: app.ProviderFactory.ConfiguredSqlProviders,
+				GetSupported:  app.ProviderFactory.SupportedSqlProviders,
 				Label:         "SQL",
 			}
 			providersToQuery, err := resolver.Resolve(providersList)
@@ -48,7 +47,7 @@ Use the --providers flag to specify which providers to query (e.g., --providers 
 
 			if len(allInstances) == 0 {
 				if len(providersToQuery) == 0 {
-					fmt.Printf("No SQL providers configured. Use 'synkronus config set'. Supported SQL providers: %s\n", strings.Join(registry.GetSupportedSqlProviders(), ", "))
+					fmt.Printf("No SQL providers configured. Use 'synkronus config set'. Supported SQL providers: %s\n", strings.Join(app.ProviderFactory.SupportedSqlProviders(), ", "))
 				} else {
 					fmt.Println("No SQL instances found.")
 				}
