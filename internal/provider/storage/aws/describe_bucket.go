@@ -3,7 +3,6 @@ package aws
 import (
 	"context"
 	"errors"
-	"fmt"
 	"log/slog"
 	"synkronus/internal/domain"
 	"synkronus/internal/domain/storage"
@@ -23,8 +22,10 @@ type bucketFetcher struct {
 	fetch                 func(ctx context.Context) error
 }
 
-// run wraps the fetch with centralized error handling: tolerate "not configured"
-// errors when flagged, and log-warn-continue for all other failures.
+// run wraps the fetch with centralized error handling and always returns nil.
+// "Not configured" errors are silently tolerated when flagged; all other failures
+// are logged as warnings. Errors do not propagate through errgroup — the
+// corresponding bucket field is left at its zero value.
 func (f bucketFetcher) run(ctx context.Context, logger *slog.Logger, bucketName string) func() error {
 	return func() error {
 		if err := f.fetch(ctx); err != nil {
@@ -51,9 +52,9 @@ func (s *AWSStorage) DescribeBucket(ctx context.Context, bucketName string) (sto
 		eg.Go(f.run(egCtx, s.logger, bucketName))
 	}
 
-	if err := eg.Wait(); err != nil {
-		return storage.Bucket{}, fmt.Errorf("describing bucket %q: %w", bucketName, err)
-	}
+	// All fetchers log-warn-continue; no error is propagated.
+	eg.Wait()
+
 	return bucket, nil
 }
 

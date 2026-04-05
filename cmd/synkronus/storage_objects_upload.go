@@ -44,7 +44,7 @@ func newUploadObjectCmd() *cobra.Command {
 
 			f, err := os.Open(filePath)
 			if err != nil {
-				return fmt.Errorf("error opening file '%s': %w", filePath, err)
+				return fmt.Errorf("opening file %q: %w", filePath, err)
 			}
 			defer f.Close()
 

@@ -223,7 +223,7 @@ func (s *StorageService) getStorageClient(ctx context.Context, providerName stri
 	client, err := s.providerFactory.GetStorageProvider(ctx, providerName)
 	if err != nil {
 		s.logger.Error("Failed to initialize provider", "provider", providerName, "error", err)
-		return nil, fmt.Errorf("error initializing provider: %w", err)
+		return nil, fmt.Errorf("initializing storage provider %s: %w", providerName, err)
 	}
 	return client, nil
 }

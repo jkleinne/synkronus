@@ -64,7 +64,7 @@ func (s *SqlService) getSqlClient(ctx context.Context, providerName string) (sql
 	client, err := s.providerFactory.GetSqlProvider(ctx, providerName)
 	if err != nil {
 		s.logger.Error("Failed to initialize SQL provider", "provider", providerName, "error", err)
-		return nil, fmt.Errorf("error initializing SQL provider: %w", err)
+		return nil, fmt.Errorf("initializing SQL provider %s: %w", providerName, err)
 	}
 	return client, nil
 }
