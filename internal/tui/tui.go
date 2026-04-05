@@ -394,7 +394,7 @@ func (m *Model) renderOverlay() string {
 
 	case OverlayCreateBucket:
 		selectorFields := make(map[int]bool)
-		for i := 0; i < createFormFieldCount; i++ {
+		for i := range createFormFieldCount {
 			if m.getCreateFieldOptions(i) != nil {
 				selectorFields[i] = true
 			}

@@ -35,7 +35,7 @@ func (g *GCPStorage) getAllBucketUsages(ctx context.Context) (map[string]int64, 
 
 	for {
 		resp, err := it.Next()
-		if err == iterator.Done {
+		if errors.Is(err, iterator.Done) {
 			break
 		}
 		if err != nil {
@@ -74,7 +74,7 @@ func (g *GCPStorage) getSingleBucketUsage(ctx context.Context, bucketName string
 	// we expect exactly one time series in the response
 	resp, err := it.Next()
 
-	if err == iterator.Done {
+	if errors.Is(err, iterator.Done) {
 		return -1, ErrMetricsNotFound
 	}
 	if err != nil {

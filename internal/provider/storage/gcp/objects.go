@@ -36,7 +36,7 @@ func (g *GCPStorage) ListObjects(ctx context.Context, bucketName string, prefix 
 
 	for {
 		attrs, err := it.Next()
-		if err == iterator.Done {
+		if errors.Is(err, iterator.Done) {
 			break
 		}
 		if err != nil {

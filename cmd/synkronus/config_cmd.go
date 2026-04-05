@@ -3,6 +3,7 @@ package main
 
 import (
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 
@@ -99,7 +100,7 @@ func newConfigCmd() *cobra.Command {
 			settings := app.ConfigManager.GetAllSettings()
 			flattenedSettings := flattenConfigMap(settings)
 
-			var displaySettings = make(map[string]interface{})
+			var displaySettings = make(map[string]any)
 			for k, v := range flattenedSettings {
 				if s, ok := v.(string); ok {
 					if s != "" {
@@ -115,11 +116,7 @@ func newConfigCmd() *cobra.Command {
 				return nil
 			}
 
-			keys := make([]string, 0, len(displaySettings))
-			for k := range displaySettings {
-				keys = append(keys, k)
-			}
-			slices.Sort(keys)
+			keys := slices.Sorted(maps.Keys(displaySettings))
 
 			fmt.Println("Current configuration:")
 			for _, k := range keys {
@@ -135,13 +132,13 @@ func newConfigCmd() *cobra.Command {
 }
 
 // Recursively flattens a nested map (like Viper's config) into a flat map with dot notation keys
-func flattenConfigMap(nestedMap map[string]interface{}) map[string]interface{} {
-	flattenedMap := make(map[string]interface{})
+func flattenConfigMap(nestedMap map[string]any) map[string]any {
+	flattenedMap := make(map[string]any)
 
-	var flatten func(string, interface{})
-	flatten = func(prefix string, value interface{}) {
+	var flatten func(string, any)
+	flatten = func(prefix string, value any) {
 		switch v := value.(type) {
-		case map[string]interface{}:
+		case map[string]any:
 			for k, val := range v {
 				newPrefix := k
 				if prefix != "" {

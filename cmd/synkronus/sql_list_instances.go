@@ -46,16 +46,15 @@ Use the --providers flag to specify which providers to query (e.g., --providers 
 				fmt.Fprintf(os.Stderr, "Warning: some SQL providers failed: %v\n", err)
 			}
 
-			if len(allInstances) > 0 {
-				return output.Render(os.Stdout, app.OutputFormat, output.InstanceListView(allInstances))
-			} else {
+			if len(allInstances) == 0 {
 				if len(providersToQuery) == 0 {
 					fmt.Printf("No SQL providers configured. Use 'synkronus config set'. Supported SQL providers: %s\n", strings.Join(registry.GetSupportedSqlProviders(), ", "))
 				} else {
 					fmt.Println("No SQL instances found.")
 				}
+				return nil
 			}
-			return nil
+			return output.Render(os.Stdout, app.OutputFormat, output.InstanceListView(allInstances))
 		},
 	}
 	cmd.Flags().StringSliceVarP(&providersList, flags.Providers, flags.ProvidersShort, nil, "Specify providers to query (comma-separated). Defaults to all configured SQL providers.")

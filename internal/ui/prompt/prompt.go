@@ -3,6 +3,7 @@ package prompt
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"io"
 	"strings"
@@ -40,7 +41,7 @@ func (p *StandardPrompter) Confirm(message string, expectedValue string) (bool, 
 	reader := bufio.NewReader(p.reader)
 	input, err := reader.ReadString('\n')
 	if err != nil {
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			return false, nil
 		}
 		return false, fmt.Errorf("error reading user input: %w", err)

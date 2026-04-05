@@ -126,7 +126,7 @@ func (v BucketDetailView) renderAccessControl() string {
 		}
 		configTable.AddRow([]string{"Uniform Bucket-Level Access", status})
 	}
-	configTable.AddRow([]string{"Public Access Prevention", strings.ToTitle(v.PublicAccessPrevention)})
+	configTable.AddRow([]string{"Public Access Prevention", v.PublicAccessPrevention})
 
 	if v.Logging != nil {
 		prefix := ""

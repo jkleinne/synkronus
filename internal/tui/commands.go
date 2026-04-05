@@ -342,7 +342,7 @@ func clearStatusCmd() tea.Cmd {
 
 // flattenSettings converts the nested config map into a flat key-value list.
 // Nested keys are joined with "." (e.g., {"gcp": {"project": "x"}} → "gcp.project" = "x").
-func flattenSettings(settings map[string]interface{}, prefix string) []ui.ConfigEntry {
+func flattenSettings(settings map[string]any, prefix string) []ui.ConfigEntry {
 	var entries []ui.ConfigEntry
 	for key, val := range settings {
 		fullKey := key
@@ -350,7 +350,7 @@ func flattenSettings(settings map[string]interface{}, prefix string) []ui.Config
 			fullKey = prefix + "." + key
 		}
 		switch v := val.(type) {
-		case map[string]interface{}:
+		case map[string]any:
 			entries = append(entries, flattenSettings(v, fullKey)...)
 		default:
 			entries = append(entries, ui.ConfigEntry{

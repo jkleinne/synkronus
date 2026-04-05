@@ -32,7 +32,7 @@ func (g *GCPStorage) ListBuckets(ctx context.Context) ([]storage.Bucket, error) 
 	it := g.client.Buckets(ctx, g.projectID)
 	for {
 		bucketAttrs, err := it.Next()
-		if err == iterator.Done {
+		if errors.Is(err, iterator.Done) {
 			break
 		}
 		if err != nil {
@@ -155,8 +155,7 @@ func (g *GCPStorage) getIAMPolicy(ctx context.Context, bucketHandle *gcpstorage.
 	var bindings []storage.IAMBinding
 
 	for _, binding := range policy.Bindings {
-		principals := make([]string, len(binding.Members))
-		copy(principals, binding.Members)
+		principals := slices.Clone(binding.Members)
 		slices.Sort(principals)
 
 		b := storage.IAMBinding{
