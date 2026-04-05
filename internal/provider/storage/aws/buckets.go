@@ -153,6 +153,9 @@ func (s *AWSStorage) UpdateBucket(ctx context.Context, opts storage.UpdateBucket
 
 // updateBucketTags performs a read-modify-write on bucket tags to support
 // SetLabels/RemoveLabels without replacing unrelated tags.
+// NOTE: This is not atomic — concurrent tag modifications between the read
+// and write will be silently overwritten. S3 does not support conditional
+// writes for tagging.
 func (s *AWSStorage) updateBucketTags(ctx context.Context, opts storage.UpdateBucketOptions) error {
 	if len(opts.SetLabels) == 0 && len(opts.RemoveLabels) == 0 {
 		return nil

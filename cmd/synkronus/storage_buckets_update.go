@@ -48,7 +48,13 @@ func newUpdateBucketCmd() *cobra.Command {
 				opts.SetLabels = setLabels
 			}
 			if cmd.Flags().Changed(flags.RemoveLabels) && removeLabelsRaw != "" {
-				opts.RemoveLabels = strings.Split(removeLabelsRaw, ",")
+				for _, part := range strings.Split(removeLabelsRaw, ",") {
+					trimmed := strings.TrimSpace(part)
+					if trimmed == "" {
+						return fmt.Errorf("invalid --%s: label key cannot be empty", flags.RemoveLabels)
+					}
+					opts.RemoveLabels = append(opts.RemoveLabels, trimmed)
+				}
 			}
 			if cmd.Flags().Changed(flags.VersioningFlag) {
 				opts.Versioning = &versioning

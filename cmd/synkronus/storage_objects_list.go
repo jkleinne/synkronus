@@ -22,6 +22,10 @@ func newListObjectsCmd() *cobra.Command {
 		Long: `Lists objects (files) and common prefixes (directories) within a specified bucket.
 Requires the --bucket and --provider flags. Use --prefix to filter the results (e.g., list contents of a specific directory).`,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if maxResults < 0 {
+				return fmt.Errorf("--%s must be a non-negative integer, got %d", flags.MaxResults, maxResults)
+			}
+
 			app, err := appFromContext(cmd.Context())
 			if err != nil {
 				return err
