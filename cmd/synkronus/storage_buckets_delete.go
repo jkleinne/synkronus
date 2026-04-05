@@ -41,7 +41,7 @@ Confirmation is required by typing the bucket name, unless the --force flag is u
 
 			err = app.StorageService.DeleteBucket(cmd.Context(), bucketName, provider)
 			if err != nil {
-				return fmt.Errorf("error deleting bucket '%s' on %s: %w", bucketName, provider, err)
+				return err
 			}
 
 			fmt.Printf("Bucket '%s' deleted successfully from provider %s.\n", bucketName, provider)

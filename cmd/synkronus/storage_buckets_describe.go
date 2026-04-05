@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"os"
 	"synkronus/internal/flags"
 	"synkronus/internal/output"
@@ -27,7 +26,7 @@ func newDescribeBucketCmd() *cobra.Command {
 
 			bucketDetails, err := app.StorageService.DescribeBucket(cmd.Context(), bucketName, provider)
 			if err != nil {
-				return fmt.Errorf("error describing bucket '%s' on %s: %w", bucketName, provider, err)
+				return err
 			}
 
 			return output.Render(os.Stdout, app.OutputFormat, output.BucketDetailView{Bucket: bucketDetails})

@@ -56,7 +56,7 @@ func newUploadObjectCmd() *cobra.Command {
 			}
 
 			if err := app.StorageService.UploadObject(cmd.Context(), opts, provider, f); err != nil {
-				return fmt.Errorf("error uploading object '%s' to bucket '%s' on %s: %w", objectKey, bucket, provider, err)
+				return err
 			}
 
 			fmt.Printf("Object '%s' uploaded successfully to bucket '%s' on provider %s.\n", objectKey, bucket, provider)

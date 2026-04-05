@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"os"
 	"synkronus/internal/flags"
 	"synkronus/internal/output"
@@ -28,7 +27,7 @@ func newDescribeInstanceCmd() *cobra.Command {
 
 			instanceDetails, err := app.SqlService.DescribeInstance(cmd.Context(), instanceName, provider)
 			if err != nil {
-				return fmt.Errorf("error describing SQL instance '%s' on %s: %w", instanceName, provider, err)
+				return err
 			}
 
 			return output.Render(os.Stdout, app.OutputFormat, output.InstanceDetailView{Instance: instanceDetails})
