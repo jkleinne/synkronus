@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"strings"
 	"synkronus/internal/domain/storage"
 	"synkronus/internal/flags"
@@ -56,12 +57,15 @@ func newCreateBucketCmd() *cobra.Command {
 				opts.PublicAccessPrevention = &normalized
 			}
 
-			err = app.StorageService.CreateBucket(cmd.Context(), opts, provider)
+			result, err := app.StorageService.CreateBucket(cmd.Context(), opts, provider)
 			if err != nil {
-				return fmt.Errorf("error creating bucket '%s' on %s: %w", opts.Name, provider, err)
+				return err
 			}
 
 			fmt.Printf("Bucket '%s' created successfully in %s on provider %s.\n", opts.Name, location, provider)
+			for _, w := range result.Warnings {
+				fmt.Fprintf(os.Stderr, "Warning: %s\n", w)
+			}
 			return nil
 		},
 	}

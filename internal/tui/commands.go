@@ -65,7 +65,10 @@ type ConfigLoadedMsg struct {
 }
 
 // BucketCreatedMsg is sent when a bucket creation operation completes.
-type BucketCreatedMsg struct{ Err error }
+type BucketCreatedMsg struct {
+	Err      error
+	Warnings []string
+}
 
 // BucketDeletedMsg is sent when a bucket deletion operation completes.
 type BucketDeletedMsg struct{ Err error }
@@ -170,8 +173,8 @@ func createBucketCmd(svc *service.StorageService, opts storage.CreateBucketOptio
 	return func() tea.Msg {
 		ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 		defer cancel()
-		err := svc.CreateBucket(ctx, opts, provider)
-		return BucketCreatedMsg{Err: err}
+		result, err := svc.CreateBucket(ctx, opts, provider)
+		return BucketCreatedMsg{Err: err, Warnings: result.Warnings}
 	}
 }
 

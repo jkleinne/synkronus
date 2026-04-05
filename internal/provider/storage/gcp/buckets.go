@@ -216,7 +216,7 @@ func (g *GCPStorage) getACLs(ctx context.Context, bucketHandle *gcpstorage.Bucke
 	return acls, nil
 }
 
-func (g *GCPStorage) CreateBucket(ctx context.Context, opts storage.CreateBucketOptions) error {
+func (g *GCPStorage) CreateBucket(ctx context.Context, opts storage.CreateBucketOptions) (storage.CreateBucketResult, error) {
 	bucket := g.client.Bucket(opts.Name)
 	attrs := &gcpstorage.BucketAttrs{
 		Location: opts.Location,
@@ -244,9 +244,9 @@ func (g *GCPStorage) CreateBucket(ctx context.Context, opts storage.CreateBucket
 		}
 	}
 	if err := bucket.Create(ctx, g.projectID, attrs); err != nil {
-		return fmt.Errorf("failed to create bucket: %w", err)
+		return storage.CreateBucketResult{}, fmt.Errorf("failed to create bucket: %w", err)
 	}
-	return nil
+	return storage.CreateBucketResult{}, nil
 }
 
 func (g *GCPStorage) DeleteBucket(ctx context.Context, bucketName string) error {

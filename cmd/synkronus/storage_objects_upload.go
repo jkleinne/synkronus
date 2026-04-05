@@ -32,7 +32,7 @@ func newUploadObjectCmd() *cobra.Command {
 
 			info, err := os.Stat(filePath)
 			if err != nil {
-				return fmt.Errorf("file not found: %s", filePath)
+				return fmt.Errorf("cannot access file %q: %w", filePath, err)
 			}
 			if info.IsDir() {
 				return fmt.Errorf("path is a directory, not a file: %s", filePath)

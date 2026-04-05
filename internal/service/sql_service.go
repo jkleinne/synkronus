@@ -54,7 +54,7 @@ func (s *SqlService) DescribeInstance(ctx context.Context, instanceName, provide
 	instance, err := client.DescribeInstance(ctx, instanceName)
 	if err != nil {
 		s.logger.Error("Failed to describe SQL instance", "instance", instanceName, "provider", providerName, "error", err)
-		return sql.Instance{}, err
+		return sql.Instance{}, fmt.Errorf("describing SQL instance %q on %s: %w", instanceName, providerName, err)
 	}
 	return instance, nil
 }

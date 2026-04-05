@@ -43,7 +43,7 @@ func (s *AWSStorage) ListBuckets(ctx context.Context) ([]storage.Bucket, error) 
 	return buckets, nil
 }
 
-func (s *AWSStorage) CreateBucket(ctx context.Context, opts storage.CreateBucketOptions) error {
+func (s *AWSStorage) CreateBucket(ctx context.Context, opts storage.CreateBucketOptions) (storage.CreateBucketResult, error) {
 	s.logger.Debug("Starting AWS CreateBucket operation", "bucket", opts.Name)
 
 	input := &s3.CreateBucketInput{
@@ -58,17 +58,19 @@ func (s *AWSStorage) CreateBucket(ctx context.Context, opts storage.CreateBucket
 	}
 
 	if _, err := s.client.CreateBucket(ctx, input); err != nil {
-		return fmt.Errorf("failed to create S3 bucket: %w", err)
+		return storage.CreateBucketResult{}, fmt.Errorf("failed to create S3 bucket: %w", err)
 	}
 
-	s.applyPostCreateOptions(ctx, opts)
+	warnings := s.applyPostCreateOptions(ctx, opts)
 
-	return nil
+	return storage.CreateBucketResult{Warnings: warnings}, nil
 }
 
 // applyPostCreateOptions applies optional settings after bucket creation.
-// Failures are logged as warnings, not returned as errors.
-func (s *AWSStorage) applyPostCreateOptions(ctx context.Context, opts storage.CreateBucketOptions) {
+// Returns warning messages for any settings that failed to apply.
+func (s *AWSStorage) applyPostCreateOptions(ctx context.Context, opts storage.CreateBucketOptions) []string {
+	var warnings []string
+
 	if opts.Versioning != nil {
 		status := types.BucketVersioningStatusSuspended
 		if *opts.Versioning {
@@ -81,7 +83,7 @@ func (s *AWSStorage) applyPostCreateOptions(ctx context.Context, opts storage.Cr
 			},
 		})
 		if err != nil {
-			s.logger.Warn("Failed to set versioning on new bucket", "bucket", opts.Name, "error", err)
+			warnings = append(warnings, fmt.Sprintf("failed to set versioning: %v", err))
 		}
 	}
 
@@ -95,7 +97,7 @@ func (s *AWSStorage) applyPostCreateOptions(ctx context.Context, opts storage.Cr
 			Tagging: &types.Tagging{TagSet: tags},
 		})
 		if err != nil {
-			s.logger.Warn("Failed to set tags on new bucket", "bucket", opts.Name, "error", err)
+			warnings = append(warnings, fmt.Sprintf("failed to set tags: %v", err))
 		}
 	}
 
@@ -111,10 +113,12 @@ func (s *AWSStorage) applyPostCreateOptions(ctx context.Context, opts storage.Cr
 			},
 		})
 		if err != nil {
-			s.logger.Warn("Failed to set public access block on new bucket", "bucket", opts.Name, "error", err)
+			warnings = append(warnings, fmt.Sprintf("failed to set public access block: %v", err))
 		}
 	}
 	// opts.UniformBucketLevelAccess is GCP-only — ignored for AWS
+
+	return warnings
 }
 
 func (s *AWSStorage) DeleteBucket(ctx context.Context, bucketName string) error {
