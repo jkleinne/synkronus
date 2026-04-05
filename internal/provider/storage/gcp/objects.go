@@ -25,8 +25,8 @@ func detectContentType(objectKey string) string {
 	return mime.TypeByExtension(ext)
 }
 
-func (g *GCPStorage) ListObjects(ctx context.Context, bucketName string, prefix string) (storage.ObjectList, error) {
-	g.logger.Debug("Starting GCP ListObjects operation (delimited)", "bucket", bucketName, "prefix", prefix)
+func (g *GCPStorage) ListObjects(ctx context.Context, bucketName string, prefix string, maxResults int) (storage.ObjectList, error) {
+	g.logger.Debug("Starting GCP ListObjects operation (delimited)", "bucket", bucketName, "prefix", prefix, "maxResults", maxResults)
 
 	bucketHandle := g.client.Bucket(bucketName)
 
@@ -44,6 +44,7 @@ func (g *GCPStorage) ListObjects(ctx context.Context, bucketName string, prefix 
 		CommonPrefixes: []string{},
 	}
 
+	count := 0
 	for {
 		attrs, err := it.Next()
 		if err == iterator.Done {
@@ -53,15 +54,18 @@ func (g *GCPStorage) ListObjects(ctx context.Context, bucketName string, prefix 
 			return storage.ObjectList{}, fmt.Errorf("error iterating objects: %w", err)
 		}
 
-		// If attrs.Prefix is set, it's a common prefix (directory)
-		if attrs.Prefix != "" {
-			result.CommonPrefixes = append(result.CommonPrefixes, attrs.Prefix)
-			continue
+		if maxResults > 0 && count >= maxResults {
+			result.IsTruncated = true
+			break
 		}
 
-		// Otherwise, it's an object (file)
-		obj := mapObjectAttributes(attrs, nil)
-		result.Objects = append(result.Objects, obj)
+		if attrs.Prefix != "" {
+			result.CommonPrefixes = append(result.CommonPrefixes, attrs.Prefix)
+		} else {
+			obj := mapObjectAttributes(attrs, nil)
+			result.Objects = append(result.Objects, obj)
+		}
+		count++
 	}
 
 	return result, nil

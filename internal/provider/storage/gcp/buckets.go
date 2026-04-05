@@ -249,6 +249,28 @@ func (g *GCPStorage) CreateBucket(ctx context.Context, opts storage.CreateBucket
 	return nil
 }
 
+func (g *GCPStorage) UpdateBucket(ctx context.Context, opts storage.UpdateBucketOptions) error {
+	g.logger.Debug("Starting GCP UpdateBucket operation", "bucket", opts.Name)
+
+	bucket := g.client.Bucket(opts.Name)
+	attrs := gcpstorage.BucketAttrsToUpdate{}
+
+	for k, v := range opts.SetLabels {
+		attrs.SetLabel(k, v)
+	}
+	for _, k := range opts.RemoveLabels {
+		attrs.DeleteLabel(k)
+	}
+	if opts.Versioning != nil {
+		attrs.VersioningEnabled = *opts.Versioning
+	}
+
+	if _, err := bucket.Update(ctx, attrs); err != nil {
+		return fmt.Errorf("failed to update bucket: %w", err)
+	}
+	return nil
+}
+
 func (g *GCPStorage) DeleteBucket(ctx context.Context, bucketName string) error {
 	bucket := g.client.Bucket(bucketName)
 	if err := bucket.Delete(ctx); err != nil {
