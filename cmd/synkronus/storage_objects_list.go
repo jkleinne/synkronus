@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"synkronus/internal/domain/storage"
 	"synkronus/internal/flags"
 	"synkronus/internal/output"
 
@@ -13,6 +14,7 @@ func newListObjectsCmd() *cobra.Command {
 	var provider string
 	var bucket string
 	var prefix string
+	var maxResults int
 
 	cmd := &cobra.Command{
 		Use:   "list",
@@ -25,7 +27,7 @@ Requires the --bucket and --provider flags. Use --prefix to filter the results (
 				return err
 			}
 
-			objectList, err := app.StorageService.ListObjects(cmd.Context(), bucket, provider, prefix)
+			objectList, err := app.StorageService.ListObjects(cmd.Context(), bucket, provider, prefix, maxResults)
 			if err != nil {
 				return fmt.Errorf("error listing objects in bucket '%s' on %s: %w", bucket, provider, err)
 			}
@@ -38,6 +40,7 @@ Requires the --bucket and --provider flags. Use --prefix to filter the results (
 	cmd.Flags().StringVarP(&bucket, flags.Bucket, flags.BucketShort, "", "The name of the bucket to list objects from (required)")
 	cmd.MarkFlagRequired(flags.Bucket)
 	cmd.Flags().StringVar(&prefix, flags.Prefix, "", "Filter results to objects beginning with this prefix (optional)")
+	cmd.Flags().IntVar(&maxResults, flags.MaxResults, storage.DefaultMaxResults, "Maximum number of items to return (0 for unlimited)")
 
 	return cmd
 }
