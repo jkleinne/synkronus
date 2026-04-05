@@ -17,10 +17,12 @@ type Storage interface {
 
 	CreateBucket(ctx context.Context, opts CreateBucketOptions) error
 
+	UpdateBucket(ctx context.Context, opts UpdateBucketOptions) error
+
 	DeleteBucket(ctx context.Context, bucketName string) error
 
 	// --- Object Operations ---
-	ListObjects(ctx context.Context, bucketName string, prefix string) (ObjectList, error)
+	ListObjects(ctx context.Context, bucketName string, prefix string, maxResults int) (ObjectList, error)
 
 	DescribeObject(ctx context.Context, bucketName string, objectKey string) (Object, error)
 

@@ -177,7 +177,7 @@ func TestIntegration_ObjectOperations(t *testing.T) {
 	}
 
 	// ListObjects — root level shows prefix
-	objList, err := s.ListObjects(ctx, bucketName, "")
+	objList, err := s.ListObjects(ctx, bucketName, "", 0)
 	if err != nil {
 		t.Fatalf("ListObjects failed: %v", err)
 	}
@@ -186,7 +186,7 @@ func TestIntegration_ObjectOperations(t *testing.T) {
 	}
 
 	// ListObjects with prefix — shows objects
-	objList, err = s.ListObjects(ctx, bucketName, "test/")
+	objList, err = s.ListObjects(ctx, bucketName, "test/", 0)
 	if err != nil {
 		t.Fatalf("ListObjects with prefix failed: %v", err)
 	}
@@ -241,7 +241,7 @@ func TestIntegration_ListObjects_Empty(t *testing.T) {
 		_ = s.DeleteBucket(ctx, bucketName)
 	})
 
-	objList, err := s.ListObjects(ctx, bucketName, "")
+	objList, err := s.ListObjects(ctx, bucketName, "", 0)
 	if err != nil {
 		t.Fatalf("ListObjects failed: %v", err)
 	}

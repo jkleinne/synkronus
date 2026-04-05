@@ -38,6 +38,7 @@ type ObjectList struct {
 	Prefix         string   `json:"prefix,omitempty" yaml:"prefix,omitempty"`
 	Objects        []Object `json:"objects,omitempty" yaml:"objects,omitempty"`
 	CommonPrefixes []string `json:"common_prefixes,omitempty" yaml:"common_prefixes,omitempty"`
+	IsTruncated    bool     `json:"is_truncated,omitempty" yaml:"is_truncated,omitempty"`
 }
 
 // Object represents a single object (file) within a storage bucket
@@ -205,4 +206,16 @@ type UploadObjectOptions struct {
 	ObjectKey   string
 	ContentType string            // optional — auto-detected from key extension if empty
 	Metadata    map[string]string // optional user-defined metadata
+}
+
+// DefaultMaxResults is the default cap for ListObjects when no explicit limit is given.
+const DefaultMaxResults = 1000
+
+// UpdateBucketOptions contains the parameters for updating an existing bucket.
+// Nil pointer fields are left unchanged; non-nil fields are applied.
+type UpdateBucketOptions struct {
+	Name         string
+	SetLabels    map[string]string // labels to add or overwrite
+	RemoveLabels []string          // label keys to remove
+	Versioning   *bool             // nil = don't change, true/false = set
 }
