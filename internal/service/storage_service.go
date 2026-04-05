@@ -95,10 +95,27 @@ func (s *StorageService) DeleteBucket(ctx context.Context, bucketName, providerN
 	return nil
 }
 
+func (s *StorageService) UpdateBucket(ctx context.Context, opts storage.UpdateBucketOptions, providerName string) error {
+	s.logger.Debug("Starting UpdateBucket operation", "bucket", opts.Name, "provider", providerName)
+
+	client, err := s.getStorageClient(ctx, providerName)
+	if err != nil {
+		return err
+	}
+	defer client.Close()
+
+	err = client.UpdateBucket(ctx, opts)
+	if err != nil {
+		s.logger.Error("Failed to update bucket", "bucket", opts.Name, "provider", providerName, "error", err)
+		return err
+	}
+	return nil
+}
+
 // --- Object Operations ---
 
-func (s *StorageService) ListObjects(ctx context.Context, bucketName, providerName, prefix string) (storage.ObjectList, error) {
-	s.logger.Debug("Starting ListObjects operation", "bucket", bucketName, "provider", providerName, "prefix", prefix)
+func (s *StorageService) ListObjects(ctx context.Context, bucketName, providerName, prefix string, maxResults int) (storage.ObjectList, error) {
+	s.logger.Debug("Starting ListObjects operation", "bucket", bucketName, "provider", providerName, "prefix", prefix, "maxResults", maxResults)
 
 	client, err := s.getStorageClient(ctx, providerName)
 	if err != nil {
@@ -106,7 +123,7 @@ func (s *StorageService) ListObjects(ctx context.Context, bucketName, providerNa
 	}
 	defer client.Close()
 
-	objects, err := client.ListObjects(ctx, bucketName, prefix)
+	objects, err := client.ListObjects(ctx, bucketName, prefix, maxResults)
 	if err != nil {
 		s.logger.Error("Failed to list objects", "bucket", bucketName, "provider", providerName, "error", err)
 		return storage.ObjectList{}, err

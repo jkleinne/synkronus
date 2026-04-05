@@ -25,8 +25,11 @@ func (f *fakeStorage) DescribeBucket(ctx context.Context, n string) (storage.Buc
 func (f *fakeStorage) CreateBucket(ctx context.Context, opts storage.CreateBucketOptions) error {
 	return nil
 }
-func (f *fakeStorage) DeleteBucket(ctx context.Context, n string) error                 { return nil }
-func (f *fakeStorage) ListObjects(ctx context.Context, b, p string) (storage.ObjectList, error) {
+func (f *fakeStorage) DeleteBucket(ctx context.Context, n string) error { return nil }
+func (f *fakeStorage) UpdateBucket(ctx context.Context, opts storage.UpdateBucketOptions) error {
+	return nil
+}
+func (f *fakeStorage) ListObjects(ctx context.Context, b, p string, maxResults int) (storage.ObjectList, error) {
 	return storage.ObjectList{}, nil
 }
 func (f *fakeStorage) DescribeObject(ctx context.Context, b, k string) (storage.Object, error) {

@@ -126,6 +126,85 @@ func (s *AWSStorage) DeleteBucket(ctx context.Context, bucketName string) error 
 	return nil
 }
 
+func (s *AWSStorage) UpdateBucket(ctx context.Context, opts storage.UpdateBucketOptions) error {
+	s.logger.Debug("Starting AWS UpdateBucket operation", "bucket", opts.Name)
+
+	if err := s.updateBucketTags(ctx, opts); err != nil {
+		return err
+	}
+
+	if opts.Versioning != nil {
+		status := types.BucketVersioningStatusSuspended
+		if *opts.Versioning {
+			status = types.BucketVersioningStatusEnabled
+		}
+		if _, err := s.client.PutBucketVersioning(ctx, &s3.PutBucketVersioningInput{
+			Bucket: &opts.Name,
+			VersioningConfiguration: &types.VersioningConfiguration{
+				Status: status,
+			},
+		}); err != nil {
+			return fmt.Errorf("failed to update versioning: %w", err)
+		}
+	}
+
+	return nil
+}
+
+// updateBucketTags performs a read-modify-write on bucket tags to support
+// SetLabels/RemoveLabels without replacing unrelated tags.
+// NOTE: This is not atomic — concurrent tag modifications between the read
+// and write will be silently overwritten. S3 does not support conditional
+// writes for tagging.
+func (s *AWSStorage) updateBucketTags(ctx context.Context, opts storage.UpdateBucketOptions) error {
+	if len(opts.SetLabels) == 0 && len(opts.RemoveLabels) == 0 {
+		return nil
+	}
+
+	// Read existing tags
+	existing := make(map[string]string)
+	out, err := s.client.GetBucketTagging(ctx, &s3.GetBucketTaggingInput{Bucket: &opts.Name})
+	if err != nil {
+		if !isS3NotConfiguredError(err) {
+			return fmt.Errorf("failed to get bucket tags: %w", err)
+		}
+		// NoSuchTagSet — start from empty
+	} else {
+		for _, tag := range out.TagSet {
+			existing[derefString(tag.Key)] = derefString(tag.Value)
+		}
+	}
+
+	// Apply changes
+	for k, v := range opts.SetLabels {
+		existing[k] = v
+	}
+	for _, k := range opts.RemoveLabels {
+		delete(existing, k)
+	}
+
+	// Write back
+	if len(existing) == 0 {
+		_, err := s.client.DeleteBucketTagging(ctx, &s3.DeleteBucketTaggingInput{Bucket: &opts.Name})
+		if err != nil {
+			return fmt.Errorf("failed to delete bucket tags: %w", err)
+		}
+		return nil
+	}
+
+	tags := make([]types.Tag, 0, len(existing))
+	for k, v := range existing {
+		tags = append(tags, types.Tag{Key: strPtr(k), Value: strPtr(v)})
+	}
+	if _, err := s.client.PutBucketTagging(ctx, &s3.PutBucketTaggingInput{
+		Bucket:  &opts.Name,
+		Tagging: &types.Tagging{TagSet: tags},
+	}); err != nil {
+		return fmt.Errorf("failed to update bucket tags: %w", err)
+	}
+	return nil
+}
+
 // derefString safely dereferences a string pointer, returning "" if nil.
 func derefString(s *string) string {
 	if s == nil {

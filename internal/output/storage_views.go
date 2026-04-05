@@ -394,6 +394,11 @@ func (v ObjectListView) RenderTable() string {
 	}
 
 	sb.WriteString(table.String())
+
+	if v.IsTruncated {
+		sb.WriteString("\n(Results truncated — use --prefix or increase --max-results to see more)\n")
+	}
+
 	return sb.String()
 }
 

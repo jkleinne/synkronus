@@ -69,4 +69,13 @@ const (
 
 	// DestKey flags specify the destination key for copy operations
 	DestKey = "dest-key"
+
+	// SetLabels flags specify labels to add/overwrite during bucket update
+	SetLabels = "set-labels"
+
+	// RemoveLabels flags specify label keys to remove during bucket update
+	RemoveLabels = "remove-labels"
+
+	// MaxResults flags specify the maximum number of items to return
+	MaxResults = "max-results"
 )

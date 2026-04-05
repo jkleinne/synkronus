@@ -11,10 +11,11 @@ import (
 	"synkronus/internal/domain/storage"
 
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 )
 
-func (s *AWSStorage) ListObjects(ctx context.Context, bucketName string, prefix string) (storage.ObjectList, error) {
-	s.logger.Debug("Starting AWS ListObjects operation", "bucket", bucketName, "prefix", prefix)
+func (s *AWSStorage) ListObjects(ctx context.Context, bucketName string, prefix string, maxResults int) (storage.ObjectList, error) {
+	s.logger.Debug("Starting AWS ListObjects operation", "bucket", bucketName, "prefix", prefix, "maxResults", maxResults)
 
 	delimiter := "/"
 	result := storage.ObjectList{
@@ -30,6 +31,29 @@ func (s *AWSStorage) ListObjects(ctx context.Context, bucketName string, prefix 
 		Delimiter: &delimiter,
 	}
 
+	if maxResults > 0 {
+		maxKeys := int32(maxResults)
+		input.MaxKeys = &maxKeys
+
+		page, err := s.client.ListObjectsV2(ctx, input)
+		if err != nil {
+			return storage.ObjectList{}, fmt.Errorf("failed to list S3 objects: %w", err)
+		}
+
+		for _, cp := range page.CommonPrefixes {
+			result.CommonPrefixes = append(result.CommonPrefixes, derefString(cp.Prefix))
+		}
+		for _, obj := range page.Contents {
+			result.Objects = append(result.Objects, mapListObject(obj, bucketName))
+		}
+		if page.IsTruncated != nil && *page.IsTruncated {
+			result.IsTruncated = true
+		}
+
+		return result, nil
+	}
+
+	// No limit — paginate through all results
 	paginator := s3.NewListObjectsV2Paginator(s.client, input)
 	for paginator.HasMorePages() {
 		page, err := paginator.NextPage(ctx)
@@ -40,24 +64,28 @@ func (s *AWSStorage) ListObjects(ctx context.Context, bucketName string, prefix 
 		for _, cp := range page.CommonPrefixes {
 			result.CommonPrefixes = append(result.CommonPrefixes, derefString(cp.Prefix))
 		}
-
 		for _, obj := range page.Contents {
-			o := storage.Object{
-				Key:          derefString(obj.Key),
-				Bucket:       bucketName,
-				Provider:     domain.AWS,
-				Size:         derefInt64(obj.Size),
-				StorageClass: storageClassOrDefault(string(obj.StorageClass)),
-				ETag:         derefString(obj.ETag),
-			}
-			if obj.LastModified != nil {
-				o.LastModified = *obj.LastModified
-			}
-			result.Objects = append(result.Objects, o)
+			result.Objects = append(result.Objects, mapListObject(obj, bucketName))
 		}
 	}
 
 	return result, nil
+}
+
+// mapListObject maps an S3 ObjectIdentifier from a list response to the domain model.
+func mapListObject(obj types.Object, bucketName string) storage.Object {
+	o := storage.Object{
+		Key:          derefString(obj.Key),
+		Bucket:       bucketName,
+		Provider:     domain.AWS,
+		Size:         derefInt64(obj.Size),
+		StorageClass: storageClassOrDefault(string(obj.StorageClass)),
+		ETag:         derefString(obj.ETag),
+	}
+	if obj.LastModified != nil {
+		o.LastModified = *obj.LastModified
+	}
+	return o
 }
 
 func (s *AWSStorage) DescribeObject(ctx context.Context, bucketName string, objectKey string) (storage.Object, error) {

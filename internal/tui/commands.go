@@ -120,7 +120,7 @@ func fetchObjectsCmd(svc *service.StorageService, bucketName, provider, prefix s
 	return func() tea.Msg {
 		ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 		defer cancel()
-		objects, err := svc.ListObjects(ctx, bucketName, provider, prefix)
+		objects, err := svc.ListObjects(ctx, bucketName, provider, prefix, storage.DefaultMaxResults)
 		return ObjectsLoadedMsg{Objects: objects, Err: err}
 	}
 }
