@@ -257,3 +257,26 @@ func TestSaveConfig_DirectoryPermissions(t *testing.T) {
 		t.Errorf("expected dir permissions %o, got %o", ConfigDirPermissions, info.Mode().Perm())
 	}
 }
+
+// TestLoadConfig_EmptyFile verifies that an empty config file is handled gracefully.
+// An empty file is not valid JSON, so LoadConfig should return an error rather than
+// silently returning a zero-value Config.
+func TestLoadConfig_EmptyFile(t *testing.T) {
+	tmpDir := t.TempDir()
+	configDir := filepath.Join(tmpDir, ".config", ConfigDirName)
+	if err := os.MkdirAll(configDir, ConfigDirPermissions); err != nil {
+		t.Fatalf("failed to create config dir: %v", err)
+	}
+	configPath := filepath.Join(configDir, ConfigFileName)
+	if err := os.WriteFile(configPath, []byte(""), ConfigFilePermissions); err != nil {
+		t.Fatalf("failed to write empty config file: %v", err)
+	}
+	t.Setenv("HOME", tmpDir)
+
+	// An empty file produces an EOF error from the JSON parser, which Viper surfaces
+	// during ReadInConfig. NewConfigManager should therefore return an error.
+	_, err := NewConfigManager()
+	if err == nil {
+		t.Fatal("expected error for empty config file, got nil")
+	}
+}
